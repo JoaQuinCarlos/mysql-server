@@ -181,6 +181,16 @@ class Equi_height : public Histogram {
   double get_greater_than_selectivity(const T &value) const;
 
   /**
+  Find the fraction of values that satisfies a LIKE condition against
+  the supplied value.
+
+  @param value The value to estimate the selectivity for.
+
+  @return the selectivity between 0.0 and 1.0 inclusive.
+*/
+  double get_like_selectivity(const T &value) const;
+
+  /**
     Equi-height constructor.
 
     This will not build the histogram, but only set its properties.

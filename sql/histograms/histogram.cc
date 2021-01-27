@@ -316,27 +316,37 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
     of distinct values, we create a Singleton histogram. Otherwise we create
     an equi-height histogram.
   */
-  if (num_buckets >= value_map.size()) {
-    Singleton<T> *singleton = new (mem_root) Singleton<T>(
-        mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
+  // Returning a equi-height histogram to simplify the process
+  Equi_height<T> *equi_height = new (mem_root) Equi_height<T>(
+      mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
 
-    if (singleton == nullptr) return nullptr;
+  if (equi_height == nullptr) return nullptr;
 
-    if (singleton->build_histogram(value_map, num_buckets))
-      return nullptr; /* purecov: inspected */
+  if (equi_height->build_histogram(value_map, num_buckets)) return nullptr;
+  histogram = equi_height;
 
-    histogram = singleton;
-  } else {
-    Equi_height<T> *equi_height = new (mem_root) Equi_height<T>(
-        mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
+  // // This code will not be run anymore. Intentionally commented.
+  // if (num_buckets >= value_map.size()) {
+  //   Singleton<T> *singleton = new (mem_root) Singleton<T>(
+  //       mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
 
-    if (equi_height == nullptr) return nullptr;
+  //   if (singleton == nullptr) return nullptr;
 
-    if (equi_height->build_histogram(value_map, num_buckets))
-      return nullptr; /* purecov: inspected */
+  //   if (singleton->build_histogram(value_map, num_buckets))
+  //     return nullptr; /* purecov: inspected */
 
-    histogram = equi_height;
-  }
+  //   histogram = singleton;
+  // } else {
+  //   Equi_height<T> *equi_height = new (mem_root) Equi_height<T>(
+  //       mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
+
+  //   if (equi_height == nullptr) return nullptr;
+
+  //   if (equi_height->build_histogram(value_map, num_buckets))
+  //     return nullptr; /* purecov: inspected */
+
+  //   histogram = equi_height;
+  // }
 
   // We should not have a nullptr at this point.
   DBUG_ASSERT(histogram != nullptr);
@@ -1302,6 +1312,25 @@ bool find_histogram(THD *thd, const std::string &schema_name,
 }
 
 template <class T>
+double Histogram::get_like_selectivity_dispatcher(const T &value) const {
+  switch (get_histogram_type()) {
+    case enum_histogram_type::SINGLETON: {
+      const Singleton<T> *singleton = down_cast<const Singleton<T> *>(this);
+      return singleton->get_like_selectivity(value);
+    }
+    case enum_histogram_type::EQUI_HEIGHT: {
+      const Equi_height<T> *equi_height =
+          down_cast<const Equi_height<T> *>(this);
+      return equi_height->get_like_selectivity(value);
+    }
+  }
+  /* purecov: begin deadcode */
+  DBUG_ASSERT(false);
+  return 0.0;
+  /* purecov: end deadcode */
+}
+
+template <class T>
 double Histogram::get_less_than_selectivity_dispatcher(const T &value) const {
   switch (get_histogram_type()) {
     case enum_histogram_type::SINGLETON: {
@@ -1390,6 +1419,8 @@ static bool get_temporal(Item *item, Value_map_type preferred_type,
 template <class T>
 double Histogram::apply_operator(const enum_operator op, const T &value) const {
   switch (op) {
+    case enum_operator::LIKE:
+      return get_like_selectivity_dispatcher(value);
     case enum_operator::LESS_THAN:
       return get_less_than_selectivity_dispatcher(value);
     case enum_operator::GREATER_THAN:
@@ -1418,6 +1449,14 @@ bool Histogram::get_selectivity_dispatcher(Item *item, const enum_operator op,
       // Is the character set the same? If not, we cannot use the histogram
       if (item->collation.collation->number != get_character_set()->number)
         return true;
+
+      if (op == enum_operator::LIKE) {
+        StringBuffer<MAX_FIELD_WIDTH> str_buf(item->collation.collation);
+        const String *str = item->val_str(&str_buf);
+        *selectivity = apply_operator(op, str);
+        // Returning false indicates a success.
+        return false;
+      }
 
       StringBuffer<MAX_FIELD_WIDTH> str_buf(item->collation.collation);
       const String *str = item->val_str(&str_buf);
@@ -1538,6 +1577,7 @@ bool Histogram::get_selectivity(Item **items, size_t item_count,
     case enum_operator::LESS_THAN:
     case enum_operator::LESS_THAN_OR_EQUAL:
     case enum_operator::GREATER_THAN_OR_EQUAL:
+    case enum_operator::LIKE:
     case enum_operator::NOT_EQUALS_TO:
       DBUG_ASSERT(item_count == 2);
       /*
@@ -1615,6 +1655,8 @@ bool Histogram::get_selectivity(Item **items, size_t item_count,
   switch (op) {
     case enum_operator::LESS_THAN:
     case enum_operator::EQUALS_TO:
+    case enum_operator::LIKE:
+      return get_selectivity_dispatcher(items[1], op, typelib, selectivity);
     case enum_operator::GREATER_THAN: {
       return get_selectivity_dispatcher(items[1], op, typelib, selectivity);
     }

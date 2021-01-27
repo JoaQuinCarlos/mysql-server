@@ -226,6 +226,16 @@ class Singleton : public Histogram {
   */
   double get_greater_than_selectivity(const T &value) const;
 
+  /**
+    Find the number of values that satisfies a LIKE predicate
+    against the value supplied.
+
+    @param value The value to estimate the selectivity for.
+
+    @return the selectivity between 0.0 and 1.0 inclusive.
+   */
+  double get_like_selectivity(const T &value) const;
+
  private:
   /**
     Add value to a JSON bucket

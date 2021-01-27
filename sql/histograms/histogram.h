@@ -127,7 +127,8 @@ enum class enum_operator {
   BETWEEN,
   NOT_BETWEEN,
   IN_LIST,
-  NOT_IN_LIST
+  NOT_IN_LIST,
+  LIKE
 };
 
 /**
@@ -284,6 +285,10 @@ class Histogram {
   /// @see get_less_than_selectivity_dispatcher
   template <class T>
   double get_equal_to_selectivity_dispatcher(const T &value) const;
+
+  /// @see get_less_than_selectivity_dispatcher
+  template <class T>
+  double get_like_selectivity_dispatcher(const T &value) const;
 
   /**
     An internal function for applying the correct function for the given
