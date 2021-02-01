@@ -738,6 +738,8 @@ static bool fill_value_maps(
   DBUG_ASSERT(sample_percentage <= 100.0);
   DBUG_ASSERT(fields.size() == value_maps.size());
 
+  // Filling the value maps. This must be changed for string values
+  // such that it includes wildcards
   std::random_device rd;
   std::uniform_int_distribution<int> dist;
   int sampling_seed = dist(rd);
@@ -1453,7 +1455,7 @@ bool Histogram::get_selectivity_dispatcher(Item *item, const enum_operator op,
       if (op == enum_operator::LIKE) {
         StringBuffer<MAX_FIELD_WIDTH> str_buf(item->collation.collation);
         const String *str = item->val_str(&str_buf);
-        *selectivity = apply_operator(op, str);
+        *selectivity = apply_operator(op, *str);
         // Returning false indicates a success.
         return false;
       }
