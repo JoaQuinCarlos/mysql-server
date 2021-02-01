@@ -232,8 +232,9 @@ static bool get_histogram_selectivity(THD *thd, const Field *field, Item **args,
       table_share->find_histogram(field->field_index());
   if (histogram != nullptr) {
     if (!histogram->get_selectivity(args, arg_count, op, selectivity)) {
-      if (unlikely(thd->opt_trace.is_started()))
+      if (unlikely(thd->opt_trace.is_started())) {
         write_histogram_to_trace(thd, item_func, *selectivity);
+      }
       return false;
     }
   }
@@ -6095,13 +6096,20 @@ void Item_func_isnotnull::print(const THD *thd, String *str,
   str->append(STRING_WITH_LEN(" is not null)"));
 }
 
-float Item_func_like::get_filtering_effect(THD *, table_map filter_for_table,
+float Item_func_like::get_filtering_effect(THD *thd, table_map filter_for_table,
                                            table_map read_tables,
                                            const MY_BITMAP *fields_to_ignore,
                                            double rows_in_table) {
   const Item_field *fld =
       contributes_to_filter(read_tables, filter_for_table, fields_to_ignore);
   if (!fld) return COND_FILTER_ALLPASS;
+
+  double selectivity;
+  if (!get_histogram_selectivity(thd, fld->field, args, arg_count,
+                                 histograms::enum_operator::LIKE, this,
+                                 fld->field->table->s, &selectivity)) {
+    return static_cast<float>(selectivity);
+  }
 
   /*
     Filtering effect is similar to that of BETWEEN because
@@ -7194,6 +7202,7 @@ Item *Item_func_eq::equality_substitution_transformer(uchar *arg) {
   return this;
 }
 
+// Copying this function for the LIKE operator.
 float Item_func_eq::get_filtering_effect(THD *thd, table_map filter_for_table,
                                          table_map read_tables,
                                          const MY_BITMAP *fields_to_ignore,

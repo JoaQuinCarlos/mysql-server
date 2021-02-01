@@ -513,6 +513,23 @@ double Equi_height<T>::get_less_than_selectivity(const T &value) const {
   return less_than_equal - equal_to;
 }
 
+template <class T>
+double Equi_height<T>::get_like_selectivity(const T &value) const {
+  // This method is the one that should use the histogram to produce
+  // a sensible selectivity estimate for the LIKE operator.
+
+  const double less_than_equal = get_less_than_equal_selectivity(value);
+  const double equal_to = get_equal_to_selectivity(value);
+
+  if (less_than_equal > 1.3) {
+    return 0.11111;
+  }
+  if (equal_to > 1.2) {
+    return 0.22222;
+  }
+  return 0.12345;
+}
+
 // Explicit template instantiations.
 template class Equi_height<double>;
 template class Equi_height<String>;

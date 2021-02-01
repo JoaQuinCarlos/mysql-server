@@ -331,6 +331,21 @@ double Singleton<T>::get_equal_to_selectivity(const T &value) const {
 }
 
 template <class T>
+double Singleton<T>::get_like_selectivity(const T &value) const {
+  /*
+    Find the first histogram bucket where the value is not less than the
+    user-provided value.
+  */
+  const auto found = m_buckets.lower_bound(value);
+  if (found == m_buckets.begin())
+    return 0.0;
+  else {
+    const auto previous = std::prev(found, 1);
+    return previous->second;
+  }
+}
+
+template <class T>
 double Singleton<T>::get_less_than_selectivity(const T &value) const {
   /*
     Find the first histogram bucket where the value is not less than the

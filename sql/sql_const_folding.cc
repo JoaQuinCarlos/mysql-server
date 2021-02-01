@@ -1292,6 +1292,7 @@ bool fold_condition(THD *thd, Item *cond, Item **retcond,
     case Item_func::GE_FUNC:
     case Item_func::GT_FUNC:
     case Item_func::EQUAL_FUNC:
+    case Item_func::LIKE_FUNC:
     case Item_func::MULT_EQUAL_FUNC:
       break;
     default:
@@ -1559,6 +1560,7 @@ bool fold_condition(THD *thd, Item *cond, Item **retcond,
     case Item_func::LE_FUNC:
     case Item_func::EQ_FUNC:
     case Item_func::NE_FUNC:
+    case Item_func::LIKE_FUNC:
     case Item_func::EQUAL_FUNC: {
       const auto new_args = down_cast<Item_bool_func2 *>(*retcond)->arguments();
       if (func != *retcond || new_args[0] != arg0_orig ||

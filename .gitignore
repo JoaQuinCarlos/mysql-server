@@ -18,3 +18,12 @@ source_downloads
 
 # Configuration files for Visual Studio Code
 .vscode/
+
+# Jetbrains configuration files
+.idea/
+
+# Build folder
+bld/
+
+# cmake dbug
+cmake-build-debug/
