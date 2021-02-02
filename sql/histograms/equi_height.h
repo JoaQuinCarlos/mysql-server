@@ -232,6 +232,8 @@ class Equi_height : public Histogram {
   */
   bool build_histogram(const Value_map<T> &value_map, size_t num_buckets);
 
+  bool update_value_map(const Value_map<T> &value_map);
+
   /**
     @return number of buckets in this histogram
   */

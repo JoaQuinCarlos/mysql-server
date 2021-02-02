@@ -96,6 +96,39 @@ Equi_height<String>::Equi_height(MEM_ROOT *mem_root,
   }
 }
 
+template <>
+bool Equi_height<String>::update_value_map(const Value_map<String> &value_map) {
+  bool hmm = false;
+  auto freq_it = value_map.begin();
+  int one_freq [1024];
+  for (int i = 0; i < 1024; i++) {
+    one_freq[i] = 0;
+  }
+  for (; freq_it != value_map.end(); ++freq_it) {
+    const String s = freq_it->first;
+    /*
+    - Convert s to lower-case since the LIKE operator is not case sensitive?
+    - A bit strange titles. String.MAX_LENGTH?
+    - Characters that convert to negative integers. (-63)
+    - Charset used. More than 1024 characters? mysql 'text' datatype
+    */
+    for (size_t i = 0; i < s.length(); i++) {
+      const char s1 = s[i];
+      const int s2 = (int)s1;
+      one_freq[s2] ++;
+    }
+  }
+  return hmm;
+}
+
+template <class T>
+bool Equi_height<T>::update_value_map(const Value_map<T> &value_map) {
+  if (value_map.get_data_type() == Value_map_type::STRING) {
+    return true;
+  }
+  return false;
+}
+
 /*
   This function will build an equi-height histogram. The algorithm works like
   the following:
@@ -157,6 +190,10 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   m_null_values_fraction =
       value_map.get_num_null_values() / static_cast<double>(total_count);
 
+  if (value_map.get_data_type() == Value_map_type::STRING) {
+    update_value_map(value_map);
+  }
+
   /*
     Divide the frequencies into evenly-ish spaced buckets, and set the bucket
     threshold accordingly.
@@ -173,6 +210,8 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   // Number of values that occurs only one time.
   int num_singlecount_values = 0;
   auto freq_it = value_map.begin();
+
+  // const String *
   const T *lowest_value = &freq_it->first;
 
   for (; freq_it != value_map.end(); ++freq_it) {
