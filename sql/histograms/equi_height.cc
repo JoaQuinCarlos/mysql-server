@@ -106,6 +106,7 @@ bool Equi_height<String>::update_value_map(const Value_map<String> &value_map) {
   }
   for (; freq_it != value_map.end(); ++freq_it) {
     const String s = freq_it->first;
+    const int freq = freq_it->second;
     /*
     - Convert s to lower-case since the LIKE operator is not case sensitive?
     - A bit strange titles. String.MAX_LENGTH?
@@ -115,7 +116,7 @@ bool Equi_height<String>::update_value_map(const Value_map<String> &value_map) {
     for (size_t i = 0; i < s.length(); i++) {
       const char s1 = s[i];
       const int s2 = (int)s1;
-      one_freq[s2] ++;
+      one_freq[s2] += freq;
     }
   }
   return hmm;
