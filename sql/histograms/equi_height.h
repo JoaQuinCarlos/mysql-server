@@ -77,6 +77,7 @@
 #include <cstddef>  // size_t
 #include <set>
 #include <string>  // std::string
+#include <vector>
 
 #include "sql/histograms/equi_height_bucket.h"  // IWYU pragma: keep
 #include "sql/histograms/histogram.h"           // Histogram, value_map_type
@@ -232,7 +233,8 @@ class Equi_height : public Histogram {
   */
   bool build_histogram(const Value_map<T> &value_map, size_t num_buckets);
 
-  bool update_value_map(const Value_map<T> &value_map);
+  bool update_value_map(const Value_map<T> &value_map, ha_rows total_count);
+
 
   /**
     @return number of buckets in this histogram

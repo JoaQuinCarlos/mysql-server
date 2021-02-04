@@ -27,10 +27,13 @@
 
 #include "sql/histograms/equi_height.h"
 
+#include <bits/stdc++.h>
 #include <stdlib.h>
 #include <cmath>  // std::lround
 #include <iterator>
+#include <map>
 #include <new>
+#include <vector>
 
 #include "my_base.h"  // ha_rows
 #include "my_dbug.h"
@@ -96,35 +99,112 @@ Equi_height<String>::Equi_height(MEM_ROOT *mem_root,
   }
 }
 
-template <>
-bool Equi_height<String>::update_value_map(const Value_map<String> &value_map) {
-  bool hmm = false;
-  auto freq_it = value_map.begin();
-  int one_freq [1024];
-  for (int i = 0; i < 1024; i++) {
-    one_freq[i] = 0;
-  }
-  for (; freq_it != value_map.end(); ++freq_it) {
-    const String s = freq_it->first;
-    const int freq = freq_it->second;
-    /*
-    - Convert s to lower-case since the LIKE operator is not case sensitive?
-    - A bit strange titles. String.MAX_LENGTH?
-    - Characters that convert to negative integers. (-63)
-    - Charset used. More than 1024 characters? mysql 'text' datatype
-    */
-    for (size_t i = 0; i < s.length(); i++) {
-      const char s1 = s[i];
-      const int s2 = (int)s1;
-      one_freq[s2] += freq;
+std::vector<String> get_projected_database(int character,
+                                           std::vector<String> raw_text) {
+  /*
+  It could be more optimal to use e vector of pointers to String. For each time
+  the vector need to resize, the strings needs to be copyed into a new vector,
+  whereas the pointers are much simpler to copy. The benefit of storing in-line
+  String objects becomes apparent when we are iterating over the vector, but
+  this is not out primary use of this vector.
+  */
+  std::vector<String> projected_database;
+
+  for (long unsigned int i = 0; i < raw_text.size(); i++) {
+    String s = raw_text[i];
+    for (long unsigned int j = 0; j < s.length(); j++) {
+      if ((int)s[j] == character) {
+        projected_database.push_back(s.substr(j, s.length() - j));
+        break;
+      }
     }
   }
+  return projected_database;
+};
+
+/*
+- Convert s to lower-case since the LIKE operator is not case sensitive?
+- A bit strange titles. String.MAX_LENGTH?
+- Characters that convert to negative integers. (-63)
+- The charset seems to use 128 characters, in addition to some negative
+values.
+*/
+template <>
+bool Equi_height<String>::update_value_map(const Value_map<String> &value_map,
+                                           ha_rows total_count) {
+  // The best accuracy was achieved at a 1.5% threshold in the paper.
+  const int THRESHOLD = (int)total_count * 0.015;
+  const int CHARACTERS_IN_ALPHABET = 128;
+  bool hmm = false;
+  auto freq_it = value_map.begin();
+
+  // Initializing the frequency table.
+  int one_freq[128];
+  for (int i = 0; i < CHARACTERS_IN_ALPHABET; i++) {
+    one_freq[i] = 0;
+  }
+
+  std::vector<String> raw_text;
+
+  // Looping through the sampled Strings and their frequencies.
+  for (; freq_it != value_map.end(); ++freq_it) {
+    // Keeping a map of which chars have already occured in the current
+    // String to avoid adding it twice.
+    std::bitset<128> present;
+    const String curr_string = freq_it->first;
+    raw_text.push_back(curr_string);
+
+    // Looping through the current String.
+    for (size_t i = 0; i < curr_string.length(); i++) {
+      const int c_int = (int)curr_string[i];
+
+      // If the character is out of bounds for the array, we don't want it.
+      if (c_int >= CHARACTERS_IN_ALPHABET || c_int < 0) {
+        continue;
+      } else {
+        // Only adding one occurrence of a character for each sampled String
+        if (present[c_int] == 0) {
+          one_freq[c_int] += 1;
+          present[c_int] = 1;
+        }
+      }
+    }
+  }
+
+  /*
+  Looping through the 1-frequent character list to check which letters passes
+  the threshold. The result is a list of characters (by int value) that passes
+  the threshold. (one_freq)
+  */
+  int count = 0;
+
+  for (int i = 0; i < 128; i++) {
+    if (one_freq[i] > THRESHOLD) {
+      one_freq[count] = i;
+      count++;
+    }
+  }
+  // Erasing the rest of the original array such that only the letters remains.
+  for (int i = count; i < 128; i++) {
+    one_freq[i] = 0;
+  }
+
+  // Fetching the projected database for each of the one-frequent characters.
+  // We might need to consider the frequency of each String here, but we will
+  // leave it for now.
+  for (int i = 0; i < count; i++) {
+    std::vector<String> projected_database =
+        get_projected_database(one_freq[i], raw_text);
+  }
+
   return hmm;
 }
 
+// Dummy method to allow for a specialized handling of String value_maps.
 template <class T>
-bool Equi_height<T>::update_value_map(const Value_map<T> &value_map) {
-  if (value_map.get_data_type() == Value_map_type::STRING) {
+bool Equi_height<T>::update_value_map(const Value_map<T> &value_map,
+                                      ha_rows total_count) {
+  if (value_map.get_data_type() == Value_map_type::STRING && total_count > 0) {
     return true;
   }
   return false;
@@ -192,7 +272,7 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
       value_map.get_num_null_values() / static_cast<double>(total_count);
 
   if (value_map.get_data_type() == Value_map_type::STRING) {
-    update_value_map(value_map);
+    update_value_map(value_map, total_count);
   }
 
   /*
