@@ -129,82 +129,272 @@ std::vector<String> get_projected_database(int character,
 - The charset seems to use 128 characters, in addition to some negative
 values.
 */
-template <>
-bool Equi_height<String>::update_value_map(const Value_map<String> &value_map,
-                                           ha_rows total_count) {
-  // The best accuracy was achieved at a 1.5% threshold in the paper.
-  const int THRESHOLD = (int)total_count * 0.015;
-  const int CHARACTERS_IN_ALPHABET = 128;
-  bool hmm = false;
-  auto freq_it = value_map.begin();
+// template <>
+// bool Equi_height<String>::update_value_map(const Value_map<String>
+// &value_map,
+//                                            ha_rows total_count) {
+//   // The best accuracy was achieved at a 1.5% threshold in the paper.
+//   const int THRESHOLD = (int)total_count * 0.015;
+//   const int CHARACTERS_IN_ALPHABET = 128;
+//   bool hmm = false;
+//   auto freq_it = value_map.begin();
 
-  // Initializing the frequency table.
-  int one_freq[128];
-  for (int i = 0; i < CHARACTERS_IN_ALPHABET; i++) {
-    one_freq[i] = 0;
-  }
+//   // Initializing the frequency table.
+//   int one_freq[128];
+//   for (int i = 0; i < CHARACTERS_IN_ALPHABET; i++) {
+//     one_freq[i] = 0;
+//   }
 
-  std::vector<String> raw_text;
+//   std::vector<String> raw_text;
 
-  // Looping through the sampled Strings and their frequencies.
-  for (; freq_it != value_map.end(); ++freq_it) {
-    // Keeping a map of which chars have already occured in the current
-    // String to avoid adding it twice.
-    std::bitset<128> present;
-    const String curr_string = freq_it->first;
-    raw_text.push_back(curr_string);
+//   // Looping through the sampled Strings and their frequencies.
+//   for (; freq_it != value_map.end(); ++freq_it) {
+//     // Keeping a map of which chars have already occured in the current
+//     // String to avoid adding it twice.
+//     std::bitset<128> present;
+//     const String curr_string = freq_it->first;
+//     raw_text.push_back(curr_string);
 
-    // Looping through the current String.
-    for (size_t i = 0; i < curr_string.length(); i++) {
-      const int c_int = (int)curr_string[i];
+//     // Looping through the current String.
+//     for (size_t i = 0; i < curr_string.length(); i++) {
+//       // SHOULD PROBABLY BE &c_int HERE, BUT LEAVING IT LIKE THIS FOR NOW FOR
+//       THE CODE TO RUN. const char c_int = curr_string[i];
 
-      // If the character is out of bounds for the array, we don't want it.
-      if (c_int >= CHARACTERS_IN_ALPHABET || c_int < 0) {
-        continue;
-      } else {
-        // Only adding one occurrence of a character for each sampled String
-        if (present[c_int] == 0) {
-          one_freq[c_int] += 1;
-          present[c_int] = 1;
-        }
-      }
-    }
-  }
+//       // If the character is out of bounds for the array, we don't want it.
+//       if (c_int >= CHARACTERS_IN_ALPHABET || c_int < 0) {
+//         continue;
+//       } else {
+//         // Only adding one occurrence of a character for each sampled String
+//         if (present[c_int] == 0) {
+//           one_freq[c_int] += 1;
+//           present[c_int] = 1;
+//         }
+//       }
+//     }
+//   }
 
-  /*
-  Looping through the 1-frequent character list to check which letters passes
-  the threshold. The result is a list of characters (by int value) that passes
-  the threshold. (one_freq)
-  */
-  int count = 0;
+//   /*
+//   Looping through the 1-frequent character list to check which letters passes
+//   the threshold. The result is a list of characters (by int value) that
+//   passes the threshold. (one_freq)
+//   */
+//   int count = 0;
 
-  for (int i = 0; i < 128; i++) {
-    if (one_freq[i] > THRESHOLD) {
-      one_freq[count] = i;
-      count++;
-    }
-  }
-  // Erasing the rest of the original array such that only the letters remains.
-  for (int i = count; i < 128; i++) {
-    one_freq[i] = 0;
-  }
+//   for (int i = 0; i < 128; i++) {
+//     if (one_freq[i] > THRESHOLD) {
+//       one_freq[count] = i;
+//       count++;
+//     }
+//   }
+//   // Erasing the rest of the original array such that only the letters
+//   remains. for (int i = count; i < 128; i++) {
+//     one_freq[i] = 0;
+//   }
 
-  // Fetching the projected database for each of the one-frequent characters.
-  // We might need to consider the frequency of each String here, but we will
-  // leave it for now.
-  for (int i = 0; i < count; i++) {
-    std::vector<String> projected_database =
-        get_projected_database(one_freq[i], raw_text);
-  }
+//   // Fetching the projected database for each of the one-frequent characters.
+//   // We might need to consider the frequency of each entry in the value_map
+//   // here, but we will leave it for now.
+//   for (int i = 0; i < count; i++) {
+//     std::vector<String> projected_database =
+//         get_projected_database(one_freq[i], raw_text);
+//   }
 
-  return hmm;
-}
+//   return hmm;
+// }
 
 // Dummy method to allow for a specialized handling of String value_maps.
 template <class T>
 bool Equi_height<T>::update_value_map(const Value_map<T> &value_map,
                                       ha_rows total_count) {
   if (value_map.get_data_type() == Value_map_type::STRING && total_count > 0) {
+    // Something is off.. :-(
+    return true;
+  }
+  return false;
+}
+
+// Fills a hard-coded histogram generated from python.
+template <>
+bool Equi_height<String>::fill_dummy_gram(const Value_map<String> &value_map) {
+  auto freq_it = value_map.begin();
+
+  // const String *
+  const String *v = &freq_it->first;
+  const CHARSET_INFO *charset = v->charset();
+  const String lowest_value = String("aaaaaa", 6, charset);
+  const double samples = 6251;
+
+  // Using the third argument to store the endpoint freq rather than the
+  // cumulative frequency. equi_height::Bucket<T> bucket(*lowest_value,
+  // freq_it->first,
+  //                              cumulative_frequency,
+  //                              num_distinct_estimate);
+  try {
+    m_buckets.emplace(equi_height::Bucket<String>(
+        lowest_value, String("aci", 3, charset), 353 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("acia", 4, charset),
+                                                  String("aerl", 4, charset),
+                                                  167 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("aerla", 5, charset),
+                                                  String("airo", 4, charset),
+                                                  135 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("airoa", 5, charset),
+                                                  String("amih", 4, charset),
+                                                  96 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("amiha", 5, charset),
+                                                  String("anso", 4, charset),
+                                                  142 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("ansoa", 5, charset),
+                                                  String("arine", 5, charset),
+                                                  118 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("arinea", 6, charset),
+                                                  String("at", 2, charset),
+                                                  1425 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("ata", 3, charset),
+                                                  String("bei", 3, charset),
+                                                  259 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("beia", 4, charset),
+                                                  String("can", 3, charset),
+                                                  546 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("cana", 4, charset),
+                                                  String("cls", 3, charset),
+                                                  181 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("clsa", 4, charset),
+                                                  String("dc", 2, charset),
+                                                  290 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("dca", 3, charset),
+                                                  String("dte", 3, charset),
+                                                  162 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("dtea", 4, charset),
+                                                  String("edl", 3, charset),
+                                                  172 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("edla", 4, charset),
+                                                  String("eig", 3, charset),
+                                                  140 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("eiga", 4, charset),
+                                                  String("enaa", 4, charset),
+                                                  210 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("enaaa", 5, charset),
+                                                  String("erea", 4, charset),
+                                                  292 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("ereaa", 5, charset),
+                                                  String("etc", 3, charset),
+                                                  110 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("etca", 4, charset),
+                                                  String("ger", 3, charset),
+                                                  403 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("gera", 4, charset),
+                                                  String("hc", 2, charset),
+                                                  283 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(
+        String("hca", 3, charset), String("hr", 2, charset), 990 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("hra", 3, charset),
+                                                  String("icel", 4, charset),
+                                                  162 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("icela", 5, charset),
+                                                  String("iin", 3, charset),
+                                                  495 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("iina", 4, charset),
+                                                  String("inst", 4, charset),
+                                                  98 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("insta", 5, charset),
+                                                  String("iu", 2, charset),
+                                                  455 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("iua", 3, charset),
+                                                  String("kre", 3, charset),
+                                                  244 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("krea", 4, charset),
+                                                  String("lear", 4, charset),
+                                                  237 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("leara", 5, charset),
+                                                  String("ller", 4, charset),
+                                                  146 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("llera", 5, charset),
+                                                  String("lsc", 3, charset),
+                                                  103 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("lsca", 4, charset),
+                                                  String("me", 2, charset),
+                                                  1224 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("mea", 3, charset),
+                                                  String("moi", 3, charset),
+                                                  270 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("moia", 4, charset),
+                                                  String("nchl", 4, charset),
+                                                  97 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("nchla", 5, charset),
+                                                  String("niin", 4, charset),
+                                                  118 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("niina", 5, charset),
+                                                  String("nri", 3, charset),
+                                                  493 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("nria", 4, charset),
+                                                  String("oat", 3, charset),
+                                                  324 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("oata", 4, charset),
+                                                  String("oile", 4, charset),
+                                                  96 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("oilea", 5, charset),
+                                                  String("onsi", 4, charset),
+                                                  121 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("onsia", 5, charset),
+                                                  String("otaa", 4, charset),
+                                                  125 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("otaaa", 5, charset),
+                                                  String("rada", 4, charset),
+                                                  190 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("radaa", 5, charset),
+                                                  String("rea", 3, charset),
+                                                  923 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("reaa", 4, charset),
+                                                  String("rid", 3, charset),
+                                                  265 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("rida", 4, charset),
+                                                  String("rne", 3, charset),
+                                                  768 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("rnea", 4, charset),
+                                                  String("rro", 3, charset),
+                                                  390 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("rroa", 4, charset),
+                                                  String("saen", 4, charset),
+                                                  143 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("saena", 5, charset),
+                                                  String("sg", 2, charset),
+                                                  345 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("sga", 3, charset),
+                                                  String("snc", 3, charset),
+                                                  173 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("snca", 4, charset),
+                                                  String("sti", 3, charset),
+                                                  420 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("stia", 4, charset),
+                                                  String("ti", 2, charset),
+                                                  1150 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("tia", 3, charset),
+                                                  String("ttr", 3, charset),
+                                                  179 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(String("ttra", 4, charset),
+                                                  String("uu", 2, charset),
+                                                  220 / samples, 1));
+    m_buckets.emplace(equi_height::Bucket<String>(
+        String("uua", 3, charset), String("zu", 2, charset), 100 / samples, 1));
+    return false;
+
+    /*
+      Since we are using a std::vector with Mem_root_allocator, we are forced
+      to wrap the following section in a try-catch. The Mem_root_allocator
+      will throw an exception of class std::bad_alloc when it runs out of
+      memory.
+    */
+  } catch (const std::bad_alloc &) {
+    // Out of memory.
+    return true;
+  }
+}
+
+template <class T>
+bool Equi_height<T>::fill_dummy_gram(const Value_map<T> &value_map) {
+  if (value_map.get_data_type() == Value_map_type::STRING) {
+    // Something is off.. :-(
     return true;
   }
   return false;
@@ -272,7 +462,8 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
       value_map.get_num_null_values() / static_cast<double>(total_count);
 
   if (value_map.get_data_type() == Value_map_type::STRING) {
-    update_value_map(value_map, total_count);
+    // update_value_map(value_map, total_count);
+    return fill_dummy_gram(value_map);
   }
 
   /*
@@ -634,10 +825,90 @@ double Equi_height<T>::get_less_than_selectivity(const T &value) const {
 }
 
 template <class T>
+int Equi_height<T>::find_match(std::vector<char> predicate,
+                               std::vector<char> boundry) const {
+  if (predicate.size() == boundry.size()) return 0;
+  return 1;
+}
+
+template <>
+int Equi_height<String>::find_match(std::vector<char> predicate,
+                                    std::vector<char> boundry) const {
+  bool PREDICATE_IS_LONGER = predicate.size() >= boundry.size();
+  if (PREDICATE_IS_LONGER) {
+    return 0;
+  }
+  bool EQUAL_LENGTH = predicate.size() == boundry.size();
+  if (EQUAL_LENGTH) {
+    for (long unsigned int i = 0; i < predicate.size(); i++) {
+      if (predicate[i] != boundry[i]) {
+        break;
+      }
+    }
+    // Found exact match
+    return 2;
+  }
+
+  long unsigned int matched_letters = 0;
+  long unsigned int i = 0;
+  for (char letter : predicate) {
+    for (;i < boundry.size(); i++) {
+      if (letter == boundry[i]) {
+        matched_letters++;
+        // i++;
+        break;
+      }
+    }
+  }
+  if (matched_letters == predicate.size()) {
+    return 1;
+  }
+  return 0;
+}
+
+template <>
+double Equi_height<String>::get_like_selectivity(const String &value) const {
+  std::vector<double> selectivity;
+  std::vector<char> v;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (value[i] != '%') {
+      v.push_back(value[i]);
+    }
+  }
+
+  for (auto it = m_buckets.begin(); it != m_buckets.end(); ++it) {
+    const String s = it->get_upper_inclusive();
+    std::vector<char> s_vec;
+    for (size_t i = 0; i < s.length(); i++) {
+      s_vec.push_back(s[i]);
+    }
+
+    int match = find_match(v, s_vec);
+
+    // Exact match
+    if (match == 2) {
+      return it->get_cumulative_frequency();
+    }
+    // Partial match
+    if (match == 1) {
+      selectivity.push_back(it->get_cumulative_frequency());
+    }
+  }
+  if (selectivity.size() > 0) {
+    double sum = 0;
+    for (double i : selectivity) {
+      sum += i;
+    }
+    return sum / selectivity.size();
+  }
+
+  return 9 / 6251;
+}
+
+template <class T>
 double Equi_height<T>::get_like_selectivity(const T &value) const {
   // This method is the one that should use the histogram to produce
   // a sensible selectivity estimate for the LIKE operator.
-
   const double less_than_equal = get_less_than_equal_selectivity(value);
   const double equal_to = get_equal_to_selectivity(value);
 

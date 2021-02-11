@@ -235,6 +235,9 @@ class Equi_height : public Histogram {
 
   bool update_value_map(const Value_map<T> &value_map, ha_rows total_count);
 
+  bool fill_dummy_gram(const Value_map<T> &value_map);
+
+  int find_match(std::vector<char> predicate, std::vector<char> boundry) const;
 
   /**
     @return number of buckets in this histogram
