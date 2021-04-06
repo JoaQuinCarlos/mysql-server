@@ -838,24 +838,25 @@ int Equi_height<String>::find_match(std::vector<char> predicate,
   if (PREDICATE_IS_LONGER) {
     return 0;
   }
-  bool EQUAL_LENGTH = predicate.size() == boundry.size();
-  if (EQUAL_LENGTH) {
-    for (long unsigned int i = 0; i < predicate.size(); i++) {
-      if (predicate[i] != boundry[i]) {
-        break;
+  long unsigned int matched_letters = 0;
+  for (long unsigned int i = 0; i < boundry.size(); i++) {
+    for (long unsigned int j = 0; j < predicate.size(); j++) {
+      if (predicate[j] == boundry[i + j]) {
+        matched_letters++;
       }
     }
-    // Found exact match
-    return 2;
+    if (matched_letters == predicate.size()) {
+      return 2;
+    }
+    matched_letters = 0;
   }
 
-  long unsigned int matched_letters = 0;
+  matched_letters = 0;
   long unsigned int i = 0;
   for (char letter : predicate) {
-    for (;i < boundry.size(); i++) {
+    for (; i < boundry.size(); i++) {
       if (letter == boundry[i]) {
         matched_letters++;
-        // i++;
         break;
       }
     }
@@ -870,12 +871,15 @@ template <>
 double Equi_height<String>::get_like_selectivity(const String &value) const {
   std::vector<double> selectivity;
   std::vector<char> v;
+  // TODO: consider case-sensitiveness here. All buckets are lower-case,
+  // so queries for upper-case letters gives a zero estimate.
   for (size_t i = 0; i < value.length(); i++) {
     if (value[i] != '%') {
       v.push_back(value[i]);
     }
   }
 
+  double greatest_sel = 0;
   for (auto it = m_buckets.begin(); it != m_buckets.end(); ++it) {
     const String s = it->get_upper_inclusive();
     std::vector<char> s_vec;
@@ -887,12 +891,18 @@ double Equi_height<String>::get_like_selectivity(const String &value) const {
 
     // Exact match
     if (match == 2) {
-      return it->get_cumulative_frequency();
+      double new_sel = it->get_cumulative_frequency();
+      if (new_sel > greatest_sel) {
+        greatest_sel = new_sel;
+      }
     }
     // Partial match
-    if (match == 1) {
+    if (match == 1 && greatest_sel == 0) {
       selectivity.push_back(it->get_cumulative_frequency());
     }
+  }
+  if (greatest_sel > 0) {
+    return greatest_sel;
   }
   if (selectivity.size() > 0) {
     double sum = 0;
