@@ -235,9 +235,15 @@ class Equi_height : public Histogram {
 
   bool update_value_map(const Value_map<T> &value_map, ha_rows total_count);
 
-  bool fill_dummy_gram(const Value_map<T> &value_map);
+  bool bide_frequent_rec(
+      std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
+      std::vector<std::tuple<std::vector<char>, int>> &result,
+      std::vector<std::vector<char>> &db);
 
-  int find_match(std::vector<char> predicate, std::vector<char> boundry) const;
+  bool fill_histogram(std::vector<std::tuple<std::vector<char>, int>> &result,
+                      const CHARSET_INFO *charset);
+
+  double get_individual_selectivity(std::vector<char> &predicate) const;
 
   /**
     @return number of buckets in this histogram
