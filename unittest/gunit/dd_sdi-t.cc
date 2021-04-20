@@ -131,7 +131,8 @@ static void mock_column_statistics_obj(dd::Column_statistics *c,
                                         "my_column",
                                         histograms::Value_map_type::INT);
 
-  EXPECT_FALSE(equi_height->build_histogram(int_values, 1024));
+  std::vector<std::tuple<std::vector<char>, int>> res;
+  EXPECT_FALSE(equi_height->build_histogram(int_values, 1024, res));
   c->set_histogram(equi_height);
 }
 

@@ -216,6 +216,10 @@ class String {
         m_is_alloced(str.m_is_alloced) {
     str.m_is_alloced = false;
   }
+  bool operator<(const String &rhs) const {
+    return *m_ptr > *(rhs.ptr());
+  }
+
   static void *operator new(size_t size, MEM_ROOT *mem_root,
                             const std::nothrow_t &arg MY_ATTRIBUTE((unused)) =
                                 std::nothrow) noexcept {
@@ -581,7 +585,8 @@ class String {
   }
   void print(String *print) const;
 
-  /* Swap two string objects. Efficient way to exchange data without memcpy. */
+  /* Swap two string objects. Efficient way to exchange data without memcpy.
+   */
   void swap(String &s) noexcept;
 
   bool uses_buffer_owned_by(const String *s) const {
@@ -597,7 +602,8 @@ class String {
     return true;
   }
   /**
-    Make a zero-terminated copy of our value,allocated in the specified MEM_ROOT
+    Make a zero-terminated copy of our value,allocated in the specified
+    MEM_ROOT
 
     @param root         MEM_ROOT to allocate the result
 

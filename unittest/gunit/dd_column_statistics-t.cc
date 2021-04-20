@@ -126,7 +126,8 @@ void equi_height_test(histograms::Value_map_type value_map_type) {
     histograms::Equi_height<T> equi_height(&mem_root, "schema", "table",
                                            "column", value_map_type);
 
-    EXPECT_FALSE(equi_height.build_histogram(value_map, 1024));
+    std::vector<std::tuple<std::vector<char>, int>> res;
+    EXPECT_FALSE(equi_height.build_histogram(value_map, 1024, res));
 
     // Set the attributes
     column_statistics.set_histogram(&equi_height);

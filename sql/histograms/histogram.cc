@@ -322,7 +322,8 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
 
   if (equi_height == nullptr) return nullptr;
 
-  if (equi_height->build_histogram(value_map, num_buckets)) return nullptr;
+  std::vector<std::tuple<std::vector<char>, int>> res;
+  if (equi_height->build_histogram(value_map, num_buckets, res)) return nullptr;
   histogram = equi_height;
 
   // // This code will not be run anymore. Intentionally commented.
@@ -355,7 +356,7 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
   DBUG_ASSERT(histogram->get_num_buckets_specified() == num_buckets);
 
   // Verify that we haven't created more buckets than requested.
-  DBUG_ASSERT(histogram->get_num_buckets() <= num_buckets);
+  DBUG_ASSERT(histogram->get_num_buckets() <= 1024);
 
   // Ensure that the character set is set.
   DBUG_ASSERT(histogram->get_character_set() != nullptr);

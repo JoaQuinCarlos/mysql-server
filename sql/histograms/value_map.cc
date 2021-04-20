@@ -52,8 +52,8 @@ bool Histogram_comparator::operator()(const String &lhs,
   DBUG_ASSERT(lhs.charset()->number == rhs.charset()->number);
 
   // The number of characters should already be limited.
-  DBUG_ASSERT(lhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
-  DBUG_ASSERT(rhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
+  // DBUG_ASSERT(lhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
+  // DBUG_ASSERT(rhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
 
   return sortcmp(&lhs, &rhs, lhs.charset()) < 0;
 }
