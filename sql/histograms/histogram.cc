@@ -322,8 +322,7 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
 
   if (equi_height == nullptr) return nullptr;
 
-  std::vector<std::tuple<std::vector<char>, int>> res;
-  if (equi_height->build_histogram(value_map, num_buckets, res)) return nullptr;
+  if (equi_height->build_histogram(value_map, num_buckets)) return nullptr;
   histogram = equi_height;
 
   // // This code will not be run anymore. Intentionally commented.
@@ -719,6 +718,206 @@ static bool prepare_value_maps(
   return false;
 }
 
+static bool islocalclosed(char previtem,
+                          std::vector<std::tuple<int, int>> &matches,
+                          std::vector<std::vector<char>> db) {
+  std::set<char> closeditems;
+  int k = 0;
+  std::vector<std::tuple<int, int>>::iterator it;
+  for (it = matches.begin(); it != matches.end(); it++) {
+    std::set<char> localitems;
+    int i = std::get<0>(*it);
+    int endpos = std::get<1>(*it);
+    for (int startpos = endpos - 1; startpos >= 0; startpos--) {
+      char item = db[i][startpos];
+      if (item == previtem) {
+        *it = std::tuple<int, int>(i, startpos);
+        break;
+      }
+      localitems.insert(item);
+    }
+    if (k == 0) {
+      closeditems.insert(localitems.begin(), localitems.end());
+    } else {
+      std::vector<char> newcloseditems;
+      std::set_intersection(closeditems.begin(), closeditems.end(),
+                            localitems.begin(), localitems.end(),
+                            std::back_inserter(newcloseditems));
+      closeditems.clear();
+      std::copy(newcloseditems.begin(), newcloseditems.end(),
+                std::inserter(closeditems, closeditems.end()));
+    }
+    k++;
+  }
+  return closeditems.size() > 0;
+}
+
+static bool reversescan(std::vector<std::vector<char>> &db,
+                        std::vector<char> patt,
+                        std::vector<std::tuple<int, int>> matches,
+                        const bool isclosedchecktype) {
+  bool check = isclosedchecktype;
+
+  // Skipping the last character then looping over the pattern backwards.
+  std::vector<char>::reverse_iterator it = patt.rbegin();
+  it++;
+  for (; it != patt.rend(); it++) {
+    char c = *it;
+    if (islocalclosed(c, matches, db)) {
+      check = !check;
+      break;
+    }
+  }
+  return check;
+}
+
+static bool canclosedprune(std::vector<std::vector<char>> &db,
+                           std::vector<char> patt,
+                           std::vector<std::tuple<int, int>> matches) {
+  std::vector<char> newpatt;
+  newpatt.push_back('\0');
+  std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+  return reversescan(db, newpatt, matches, false);
+}
+
+static bool isclosed(std::vector<std::vector<char>> &db, std::vector<char> patt,
+                     std::vector<std::tuple<int, int>> matches) {
+  // Creating the matches input to the reversescan method.
+  std::vector<std::tuple<int, int>> newmatches;
+  std::vector<std::tuple<int, int>>::iterator it;
+  for (it = matches.begin(); it != matches.end(); it++) {
+    int i = std::get<0>(*it);
+    newmatches.push_back(std::tuple<int, int>(i, db[i].size()));
+  }
+
+  // Creating the patt input to the reversescan method.
+  std::vector<char> newpatt;
+  newpatt.push_back('\0');
+  std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+
+  // Pushing pack a dummy char at the end. This is an alternative to pushing
+  // back a NULL.
+  newpatt.push_back('\0');
+
+  return reversescan(db, newpatt, newmatches, true);
+}
+
+static void invertedindex(
+    std::vector<std::vector<char>> seqs,
+    std::vector<std::tuple<int, int>> entries,
+    std::map<char, std::vector<std::tuple<int, int>>> &index) {
+  int k = 0;
+  std::vector<std::vector<char>>::iterator it;
+  for (it = seqs.begin(); it != seqs.end(); it++) {
+    int i, lastpos;
+    std::vector<char> seq = *it;
+    if (entries.size() > 0) {
+      std::tuple<int, int> currtuple = entries[k];
+      i = std::get<0>(currtuple);
+      lastpos = std::get<1>(currtuple);
+    } else {
+      i = k;
+      lastpos = -1;
+    }
+
+    int p = lastpos + 1;
+    std::vector<char>::iterator it2;
+    for (it2 = seq.begin(); it2 != seq.end(); it2++) {
+      char item = *it2;
+      std::vector<std::tuple<int, int>> l = index[item];
+      if (l.size() > 0 && std::get<0>(*--l.end()) == i) {
+        p++;
+        continue;
+      }
+
+      l.push_back(std::tuple<int, int>(i, p));
+      index[item] = l;
+      p++;
+    }
+    k++;
+  }
+}
+
+static void nextentries(
+    std::vector<std::vector<char>> &data,
+    std::vector<std::tuple<int, int>> entries,
+    std::map<char, std::vector<std::tuple<int, int>>> &index) {
+  std::vector<std::vector<char>> newdata;
+  std::vector<std::tuple<int, int>>::iterator it;
+  for (it = entries.begin(); it != entries.end(); it++) {
+    int i = std::get<0>(*it);
+    int lastpos = std::get<1>(*it);
+    std::vector<char>::iterator data_it;
+    std::vector<char> new_entry;
+    std::copy(data[i].begin() + lastpos + 1, data[i].end(),
+              std::back_inserter(new_entry));
+    newdata.push_back(new_entry);
+  }
+  invertedindex(newdata, entries, index);
+}
+
+static bool bide_frequent_rec(
+    std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
+    std::vector<std::tuple<std::vector<char>, int>> &result,
+    std::vector<std::vector<char>> &db) {
+  int MINSUP = 3;
+  long unsigned int MINLEN = 2;
+  long unsigned int MAXLEN = 10;
+
+  int sup = matches.size();
+  // If pattern's length is greater than minimum length, consider whether it
+  // should be recorded.
+  if (patt.size() >= MINLEN) {
+    // If pattern's support < minsup, stop.
+    if (sup < MINSUP) {
+      return false;
+    }
+
+    // if pattern is closed (backward extension check), record the pattern and
+    // its support.
+    if (isclosed(db, patt, matches)) {
+      result.push_back(std::tuple<std::vector<char>, int>(patt, sup));
+    }
+  }
+
+  // If pattern's length is greater than maximum length, stop recursion.
+  if (patt.size() == MAXLEN) {
+    return false;
+  }
+
+  std::map<char, std::vector<std::tuple<int, int>>> occurs;
+
+  // Find the following items
+  nextentries(db, matches, occurs);
+
+  std::map<char, std::vector<std::tuple<int, int>>>::iterator it;
+  for (it = occurs.begin(); it != occurs.end(); it++) {
+    char newitem = it->first;
+    std::vector<std::tuple<int, int>> newmatches = it->second;
+
+    // Set the new pattern
+    std::vector<char> newpatt;
+    std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+    newpatt.push_back(newitem);
+
+    // forward closed pattern checking
+    if (matches.size() == newmatches.size()) {
+      std::tuple<std::vector<char>, int> tuple_to_find =
+          std::tuple<std::vector<char>, int>(patt, sup);
+      result.erase(std::remove(result.begin(), result.end(), tuple_to_find),
+                   result.end());
+    }
+
+    // Can we stop pruning the new pattern?
+    if (canclosedprune(db, newpatt, newmatches)) {
+      continue;
+    }
+    bide_frequent_rec(newpatt, newmatches, result, db);
+  }
+
+  return false;
+}
+
 /**
   Read data from a table into the provided Value_maps. We will read data using
   sampling with the provided sampling percentage.
@@ -766,23 +965,83 @@ static bool fill_value_maps(
 
   // Read the data from each column into its own Value_map.
   int res = table->file->ha_sample_next(scan_ctx, table->record[0]);
+  int samplecount = 0;
+  std::vector<String> sample;
 
-  while (res == 0) {
+  while (res == 0 && samplecount < 200) {
     for (Field *field : fields) {
       histograms::Value_map_base *value_map =
           value_maps.at(field->field_index()).get();
 
       switch (histograms::field_type_to_value_map_type(field)) {
         case histograms::Value_map_type::STRING: {
-          StringBuffer<MAX_FIELD_WIDTH> str_buf(field->charset());
-          field->val_str(&str_buf);
+          if (samplecount < 200) {
+            StringBuffer<MAX_FIELD_WIDTH> str_buf(field->charset());
+            field->val_str(&str_buf);
 
-          if (field->is_null())
-            value_map->add_null_values(1);
-          else if (value_map->add_values(static_cast<String>(str_buf), 1))
-            return true; /* purecov: deadcode */
+            // TODO: Debug here. If we have the strings here, we can run the
+            // BIDE algorithm already here, and just send in the patterns to the
+            // histogram construction methods. Maybe create a counter to ensure
+            // that we only sample 200 rows.
+            String a = static_cast<String>(str_buf);
+            sample.push_back(a);
+            samplecount++;
+          }
+
+          if (samplecount == 200) {
+            samplecount++;
+            std::vector<String>::const_iterator it;
+
+            std::vector<std::vector<char>> db;
+            for (it = sample.begin(); it != sample.end(); it++) {
+              const String currstring = *it;
+              size_t length = currstring.length();
+              std::vector<char> localstr;
+              for (size_t i = 0; i < length; i++) {
+                if (isalnum(currstring[i])) {
+                  localstr.push_back(tolower(currstring[i]));
+                }
+              }
+              db.push_back(localstr);
+            }
+
+            std::vector<char> patt;
+            std::vector<std::tuple<int, int>> matches;
+            std::vector<std::tuple<std::vector<char>, int>> result;
+            for (int i = 0; i < 200; i++) {
+              matches.push_back(std::tuple<int, int>(i, -1));
+            }
+            bool error = bide_frequent_rec(patt, matches, result, db);
+            if (!error) {
+              float NUMBER_OF_BUCKETS = 1024.0;
+              int total_freq = 0;
+              std::vector<std::tuple<std::vector<char>, int>>::iterator it2;
+              for (it2 = result.begin(); it2 != result.end(); it2++) {
+                total_freq += std::get<1>(*it2);
+              }
+
+              int bucket_size = ceil(total_freq / NUMBER_OF_BUCKETS);
+              int count = 0;
+              int bucket_number = 0;
+              const CHARSET_INFO *charset_info = &my_charset_latin1;
+              for (it2 = result.begin(); it2 != result.end(); it2++) {
+                count += std::get<1>(*it2);
+                if (count > bucket_number * bucket_size &&
+                    bucket_number < NUMBER_OF_BUCKETS) {
+                  bucket_number++;
+                  std::vector<char> curr = std::get<0>(*it2);
+                  if (value_map->add_values(
+                          String(&(curr[0]), curr.size(), charset_info),
+                          std::get<1>(*it2))) {
+                    return true;
+                  }
+                }
+              }
+            }
+          }
           break;
         }
+
         case histograms::Value_map_type::DOUBLE: {
           double value = field->val_real();
           if (field->is_null())
@@ -859,15 +1118,15 @@ static bool fill_value_maps(
 
     res = table->file->ha_sample_next(scan_ctx, table->record[0]);
 
-    DBUG_EXECUTE_IF(
-        "sample_read_sample_half", static uint count = 1;
-        if (count == std::max(1ULL, table->file->stats.records) / 2) {
-          res = HA_ERR_END_OF_FILE;
-          break;
-        } ++count;);
+    // DBUG_EXECUTE_IF(
+    //     "sample_read_sample_half", static uint count = 1;
+    //     if (count == std::max(1ULL, table->file->stats.records) / 2) {
+    //       res = HA_ERR_END_OF_FILE;
+    //       break;
+    //     } ++count;);
   }
 
-  if (res != HA_ERR_END_OF_FILE) return true; /* purecov: deadcode */
+  // if (res != HA_ERR_END_OF_FILE) return true; /* purecov: deadcode */
 
   // Close the handler
   handler_guard.commit();

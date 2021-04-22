@@ -61,17 +61,13 @@ Equi_height<T>::Equi_height(MEM_ROOT *mem_root, const std::string &db_name,
     : Histogram(mem_root, db_name, tbl_name, col_name,
                 enum_histogram_type::EQUI_HEIGHT, data_type),
       m_buckets(Histogram_comparator(),
-                Mem_root_allocator<equi_height::Bucket<T>>(mem_root)),
-      s_buckets(
-          Mem_root_allocator<std::tuple<std::vector<char>, int>>(mem_root)) {}
+                Mem_root_allocator<equi_height::Bucket<T>>(mem_root)) {}
 
 template <class T>
 Equi_height<T>::Equi_height(MEM_ROOT *mem_root, const Equi_height<T> &other)
     : Histogram(mem_root, other),
       m_buckets(Histogram_comparator(),
-                Mem_root_allocator<equi_height::Bucket<T>>(mem_root)),
-      s_buckets(
-          Mem_root_allocator<std::tuple<std::vector<char>, int>>(mem_root)) {
+                Mem_root_allocator<equi_height::Bucket<T>>(mem_root)) {
   for (const auto &bucket : other.m_buckets) m_buckets.emplace(bucket);
 }
 
@@ -80,9 +76,7 @@ Equi_height<String>::Equi_height(MEM_ROOT *mem_root,
                                  const Equi_height<String> &other)
     : Histogram(mem_root, other),
       m_buckets(Histogram_comparator(),
-                Mem_root_allocator<equi_height::Bucket<String>>(mem_root)),
-      s_buckets(
-          Mem_root_allocator<std::tuple<std::vector<char>, int>>(mem_root)) {
+                Mem_root_allocator<equi_height::Bucket<String>>(mem_root)) {
   /*
     Copy bucket contents. We need to make duplicates of String data, since they
     are allocated on a MEM_ROOT that most likely will be freed way too early.
@@ -107,345 +101,344 @@ Equi_height<String>::Equi_height(MEM_ROOT *mem_root,
   }
 }
 
-template <class T>
-bool Equi_height<T>::reversescan(std::vector<std::vector<char>> &db,
-                                 std::vector<char> patt,
-                                 std::vector<std::tuple<int, int>> matches,
-                                 bool isclosedchecktype) {
-  return db.size() > 0 && patt.size() > 0 && matches.size() > 0 &&
-         isclosedchecktype;
-}
+// template <class T>
+// bool Equi_height<T>::reversescan(std::vector<std::vector<char>> &db,
+//                                  std::vector<char> patt,
+//                                  std::vector<std::tuple<int, int>> matches,
+//                                  bool isclosedchecktype) {
+//   return db.size() > 0 && patt.size() > 0 && matches.size() > 0 &&
+//          isclosedchecktype;
+// }
 
-template <class T>
-void Equi_height<T>::invertedindex(
-    std::vector<std::vector<char>> seqs,
-    std::vector<std::tuple<int, int>> entries,
-    std::map<char, std::vector<std::tuple<int, int>>> &index) {
-  std::vector<std::tuple<int, int>> ret;
-  if (seqs.size() > 0 && entries.size() > 0 && index.size() > 0) {
-    index['a'] = ret;
-  }
-}
+// template <class T>
+// void Equi_height<T>::invertedindex(
+//     std::vector<std::vector<char>> seqs,
+//     std::vector<std::tuple<int, int>> entries,
+//     std::map<char, std::vector<std::tuple<int, int>>> &index) {
+//   std::vector<std::tuple<int, int>> ret;
+//   if (seqs.size() > 0 && entries.size() > 0 && index.size() > 0) {
+//     index['a'] = ret;
+//   }
+// }
 
-template <>
-bool Equi_height<String>::islocalclosed(
-    char previtem, std::vector<std::tuple<int, int>> &matches,
-    std::vector<std::vector<char>> db) {
-  std::set<char> closeditems;
-  int k = 0;
-  std::vector<std::tuple<int, int>>::iterator it;
-  for (it = matches.begin(); it != matches.end(); it++) {
-    std::set<char> localitems;
-    int i = std::get<0>(*it);
-    int endpos = std::get<1>(*it);
-    for (int startpos = endpos - 1; startpos >= 0; startpos--) {
-      char item = db[i][startpos];
-      if (item == previtem) {
-        *it = std::tuple<int, int>(i, startpos);
-        break;
-      }
-      localitems.insert(item);
-    }
-    if (k == 0) {
-      closeditems.insert(localitems.begin(), localitems.end());
-    } else {
-      std::vector<char> newcloseditems;
-      std::set_intersection(closeditems.begin(), closeditems.end(),
-                            localitems.begin(), localitems.end(),
-                            std::back_inserter(newcloseditems));
-      closeditems.clear();
-      std::copy(newcloseditems.begin(), newcloseditems.end(),
-                std::inserter(closeditems, closeditems.end()));
-    }
-    k++;
-  }
-  return closeditems.size() > 0;
-}
+// template <>
+// bool Equi_height<String>::islocalclosed(
+//     char previtem, std::vector<std::tuple<int, int>> &matches,
+//     std::vector<std::vector<char>> db) {
+//   std::set<char> closeditems;
+//   int k = 0;
+//   std::vector<std::tuple<int, int>>::iterator it;
+//   for (it = matches.begin(); it != matches.end(); it++) {
+//     std::set<char> localitems;
+//     int i = std::get<0>(*it);
+//     int endpos = std::get<1>(*it);
+//     for (int startpos = endpos - 1; startpos >= 0; startpos--) {
+//       char item = db[i][startpos];
+//       if (item == previtem) {
+//         *it = std::tuple<int, int>(i, startpos);
+//         break;
+//       }
+//       localitems.insert(item);
+//     }
+//     if (k == 0) {
+//       closeditems.insert(localitems.begin(), localitems.end());
+//     } else {
+//       std::vector<char> newcloseditems;
+//       std::set_intersection(closeditems.begin(), closeditems.end(),
+//                             localitems.begin(), localitems.end(),
+//                             std::back_inserter(newcloseditems));
+//       closeditems.clear();
+//       std::copy(newcloseditems.begin(), newcloseditems.end(),
+//                 std::inserter(closeditems, closeditems.end()));
+//     }
+//     k++;
+//   }
+//   return closeditems.size() > 0;
+// }
 
-template <>
-bool Equi_height<String>::reversescan(std::vector<std::vector<char>> &db,
-                                      std::vector<char> patt,
-                                      std::vector<std::tuple<int, int>> matches,
-                                      const bool isclosedchecktype) {
-  bool check = isclosedchecktype;
+// template <>
+// bool Equi_height<String>::reversescan(std::vector<std::vector<char>> &db,
+//                                       std::vector<char> patt,
+//                                       std::vector<std::tuple<int, int>>
+//                                       matches, const bool isclosedchecktype)
+//                                       {
+//   bool check = isclosedchecktype;
 
-  // Skipping the last character then looping over the pattern backwards.
-  std::vector<char>::reverse_iterator it = patt.rbegin();
-  it++;
-  for (; it != patt.rend(); it++) {
-    char c = *it;
-    if (islocalclosed(c, matches, db)) {
-      check = !check;
-      break;
-    }
-  }
-  return check;
-}
+//   // Skipping the last character then looping over the pattern backwards.
+//   std::vector<char>::reverse_iterator it = patt.rbegin();
+//   it++;
+//   for (; it != patt.rend(); it++) {
+//     char c = *it;
+//     if (islocalclosed(c, matches, db)) {
+//       check = !check;
+//       break;
+//     }
+//   }
+//   return check;
+// }
 
-template <>
-bool Equi_height<String>::isclosed(std::vector<std::vector<char>> &db,
-                                   std::vector<char> patt,
-                                   std::vector<std::tuple<int, int>> matches) {
-  // Creating the matches input to the reversescan method.
-  std::vector<std::tuple<int, int>> newmatches;
-  std::vector<std::tuple<int, int>>::iterator it;
-  for (it = matches.begin(); it != matches.end(); it++) {
-    int i = std::get<0>(*it);
-    newmatches.push_back(std::tuple<int, int>(i, db[i].size()));
-  }
+// template <>
+// bool Equi_height<String>::isclosed(std::vector<std::vector<char>> &db,
+//                                    std::vector<char> patt,
+//                                    std::vector<std::tuple<int, int>> matches)
+//                                    {
+//   // Creating the matches input to the reversescan method.
+//   std::vector<std::tuple<int, int>> newmatches;
+//   std::vector<std::tuple<int, int>>::iterator it;
+//   for (it = matches.begin(); it != matches.end(); it++) {
+//     int i = std::get<0>(*it);
+//     newmatches.push_back(std::tuple<int, int>(i, db[i].size()));
+//   }
 
-  // Creating the patt input to the reversescan method.
-  std::vector<char> newpatt;
-  newpatt.push_back('\0');
-  std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+//   // Creating the patt input to the reversescan method.
+//   std::vector<char> newpatt;
+//   newpatt.push_back('\0');
+//   std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
 
-  // Pushing pack a dummy char at the end. This is an alternative to pushing
-  // back a NULL.
-  newpatt.push_back('\0');
+//   // Pushing pack a dummy char at the end. This is an alternative to pushing
+//   // back a NULL.
+//   newpatt.push_back('\0');
 
-  return reversescan(db, newpatt, newmatches, true);
-}
+//   return reversescan(db, newpatt, newmatches, true);
+// }
 
-template <>
-void Equi_height<String>::invertedindex(
-    std::vector<std::vector<char>> seqs,
-    std::vector<std::tuple<int, int>> entries,
-    std::map<char, std::vector<std::tuple<int, int>>> &index) {
-  int k = 0;
-  std::vector<std::vector<char>>::iterator it;
-  for (it = seqs.begin(); it != seqs.end(); it++) {
-    int i, lastpos;
-    std::vector<char> seq = *it;
-    if (entries.size() > 0) {
-      std::tuple<int, int> currtuple = entries[k];
-      i = std::get<0>(currtuple);
-      lastpos = std::get<1>(currtuple);
-    } else {
-      i = k;
-      lastpos = -1;
-    }
+// template <>
+// void Equi_height<String>::invertedindex(
+//     std::vector<std::vector<char>> seqs,
+//     std::vector<std::tuple<int, int>> entries,
+//     std::map<char, std::vector<std::tuple<int, int>>> &index) {
+//   int k = 0;
+//   std::vector<std::vector<char>>::iterator it;
+//   for (it = seqs.begin(); it != seqs.end(); it++) {
+//     int i, lastpos;
+//     std::vector<char> seq = *it;
+//     if (entries.size() > 0) {
+//       std::tuple<int, int> currtuple = entries[k];
+//       i = std::get<0>(currtuple);
+//       lastpos = std::get<1>(currtuple);
+//     } else {
+//       i = k;
+//       lastpos = -1;
+//     }
 
-    int p = lastpos + 1;
-    std::vector<char>::iterator it2;
-    for (it2 = seq.begin(); it2 != seq.end(); it2++) {
-      char item = *it2;
-      std::vector<std::tuple<int, int>> l = index[item];
-      if (l.size() > 0 && std::get<0>(*--l.end()) == i) {
-        p++;
-        continue;
-      }
+//     int p = lastpos + 1;
+//     std::vector<char>::iterator it2;
+//     for (it2 = seq.begin(); it2 != seq.end(); it2++) {
+//       char item = *it2;
+//       std::vector<std::tuple<int, int>> l = index[item];
+//       if (l.size() > 0 && std::get<0>(*--l.end()) == i) {
+//         p++;
+//         continue;
+//       }
 
-      l.push_back(std::tuple<int, int>(i, p));
-      index[item] = l;
-      p++;
-    }
-    k++;
-  }
-}
+//       l.push_back(std::tuple<int, int>(i, p));
+//       index[item] = l;
+//       p++;
+//     }
+//     k++;
+//   }
+// }
 
-template <>
-void Equi_height<String>::nextentries(
-    std::vector<std::vector<char>> &data,
-    std::vector<std::tuple<int, int>> entries,
-    std::map<char, std::vector<std::tuple<int, int>>> &index) {
-  std::vector<std::vector<char>> newdata;
-  std::vector<std::tuple<int, int>>::iterator it;
-  for (it = entries.begin(); it != entries.end(); it++) {
-    int i = std::get<0>(*it);
-    int lastpos = std::get<1>(*it);
-    std::vector<char>::iterator data_it;
-    std::vector<char> new_entry;
-    std::copy(data[i].begin() + lastpos + 1, data[i].end(),
-              std::back_inserter(new_entry));
-    newdata.push_back(new_entry);
-  }
-  invertedindex(newdata, entries, index);
-}
+// template <>
+// void Equi_height<String>::nextentries(
+//     std::vector<std::vector<char>> &data,
+//     std::vector<std::tuple<int, int>> entries,
+//     std::map<char, std::vector<std::tuple<int, int>>> &index) {
+//   std::vector<std::vector<char>> newdata;
+//   std::vector<std::tuple<int, int>>::iterator it;
+//   for (it = entries.begin(); it != entries.end(); it++) {
+//     int i = std::get<0>(*it);
+//     int lastpos = std::get<1>(*it);
+//     std::vector<char>::iterator data_it;
+//     std::vector<char> new_entry;
+//     std::copy(data[i].begin() + lastpos + 1, data[i].end(),
+//               std::back_inserter(new_entry));
+//     newdata.push_back(new_entry);
+//   }
+//   invertedindex(newdata, entries, index);
+// }
 
-template <>
-bool Equi_height<String>::canclosedprune(
-    std::vector<std::vector<char>> &db, std::vector<char> patt,
-    std::vector<std::tuple<int, int>> matches) {
-  std::vector<char> newpatt;
-  newpatt.push_back('\0');
-  std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
-  return reversescan(db, newpatt, matches, false);
-}
+// template <>
+// bool Equi_height<String>::canclosedprune(
+//     std::vector<std::vector<char>> &db, std::vector<char> patt,
+//     std::vector<std::tuple<int, int>> matches) {
+//   std::vector<char> newpatt;
+//   newpatt.push_back('\0');
+//   std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+//   return reversescan(db, newpatt, matches, false);
+// }
 
-template <>
-bool Equi_height<String>::bide_frequent_rec(
-    std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
-    std::vector<std::tuple<std::vector<char>, int>> &result,
-    std::vector<std::vector<char>> &db) {
-  // int MINSUP = 2;
-  // long unsigned int MINLEN = 0;
-  // long unsigned int MAXLEN = 5;
+// template <>
+// bool Equi_height<String>::bide_frequent_rec(
+//     std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
+//     std::vector<std::tuple<std::vector<char>, int>> &result,
+//     std::vector<std::vector<char>> &db) {
+//   // int MINSUP = 2;
+//   // long unsigned int MINLEN = 0;
+//   // long unsigned int MAXLEN = 5;
 
-  int MINSUP = 3;
-  long unsigned int MINLEN = 2;
-  long unsigned int MAXLEN = 10;
+//   int MINSUP = 3;
+//   long unsigned int MINLEN = 2;
+//   long unsigned int MAXLEN = 10;
 
-  int sup = matches.size();
-  // If pattern's length is greater than minimum length, consider whether it
-  // should be recorded.
-  if (patt.size() >= MINLEN) {
-    // If pattern's support < minsup, stop.
-    if (sup < MINSUP) {
-      return false;
-    }
+//   int sup = matches.size();
+//   // If pattern's length is greater than minimum length, consider whether it
+//   // should be recorded.
+//   if (patt.size() >= MINLEN) {
+//     // If pattern's support < minsup, stop.
+//     if (sup < MINSUP) {
+//       return false;
+//     }
 
-    // if pattern is closed (backward extension check), record the pattern and
-    // its support.
-    if (isclosed(db, patt, matches)) {
-      result.push_back(std::tuple<std::vector<char>, int>(patt, sup));
-    }
-  }
+//     // if pattern is closed (backward extension check), record the pattern
+//     and
+//     // its support.
+//     if (isclosed(db, patt, matches)) {
+//       result.push_back(std::tuple<std::vector<char>, int>(patt, sup));
+//     }
+//   }
 
-  // If pattern's length is greater than maximum length, stop recursion.
-  if (patt.size() == MAXLEN) {
-    return false;
-  }
+//   // If pattern's length is greater than maximum length, stop recursion.
+//   if (patt.size() == MAXLEN) {
+//     return false;
+//   }
 
-  std::map<char, std::vector<std::tuple<int, int>>> occurs;
+//   std::map<char, std::vector<std::tuple<int, int>>> occurs;
 
-  // Find the following items
-  nextentries(db, matches, occurs);
+//   // Find the following items
+//   nextentries(db, matches, occurs);
 
-  std::map<char, std::vector<std::tuple<int, int>>>::iterator it;
-  for (it = occurs.begin(); it != occurs.end(); it++) {
-    char newitem = it->first;
-    std::vector<std::tuple<int, int>> newmatches = it->second;
+//   std::map<char, std::vector<std::tuple<int, int>>>::iterator it;
+//   for (it = occurs.begin(); it != occurs.end(); it++) {
+//     char newitem = it->first;
+//     std::vector<std::tuple<int, int>> newmatches = it->second;
 
-    // Set the new pattern
-    std::vector<char> newpatt;
-    std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
-    newpatt.push_back(newitem);
+//     // Set the new pattern
+//     std::vector<char> newpatt;
+//     std::copy(patt.begin(), patt.end(), std::back_inserter(newpatt));
+//     newpatt.push_back(newitem);
 
-    // forward closed pattern checking
-    if (matches.size() == newmatches.size()) {
-      std::tuple<std::vector<char>, int> tuple_to_find =
-          std::tuple<std::vector<char>, int>(patt, sup);
-      result.erase(std::remove(result.begin(), result.end(), tuple_to_find),
-                   result.end());
-    }
+//     // forward closed pattern checking
+//     if (matches.size() == newmatches.size()) {
+//       std::tuple<std::vector<char>, int> tuple_to_find =
+//           std::tuple<std::vector<char>, int>(patt, sup);
+//       result.erase(std::remove(result.begin(), result.end(), tuple_to_find),
+//                    result.end());
+//     }
 
-    // Can we stop pruning the new pattern?
-    if (canclosedprune(db, newpatt, newmatches)) {
-      continue;
-    }
-    bide_frequent_rec(newpatt, newmatches, result, db);
-  }
+//     // Can we stop pruning the new pattern?
+//     if (canclosedprune(db, newpatt, newmatches)) {
+//       continue;
+//     }
+//     bide_frequent_rec(newpatt, newmatches, result, db);
+//   }
 
-  return false;
-}
+//   return false;
+// }
 
-template <class T>
-bool Equi_height<T>::bide_frequent_rec(
-    std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
-    std::vector<std::tuple<std::vector<char>, int>> &result,
-    std::vector<std::vector<char>> &db) {
-  // Dummy method
-  return patt.size() > 0 && matches.size() > 0 && result.size() > 0 &&
-         db.size() > 0;
-}
+// template <class T>
+// bool Equi_height<T>::bide_frequent_rec(
+//     std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
+//     std::vector<std::tuple<std::vector<char>, int>> &result,
+//     std::vector<std::vector<char>> &db) {
+//   // Dummy method
+//   return patt.size() > 0 && matches.size() > 0 && result.size() > 0 &&
+//          db.size() > 0;
+// }
 
-template <>
-bool Equi_height<String>::fill_histogram(
-    std::vector<std::tuple<std::vector<char>, int>> &result,
-    std::vector<std::tuple<std::vector<char>, int>> &res) {
-  float NUMBER_OF_BUCKETS = 1024.0;
-  // const CHARSET_INFO *charset_info = &my_charset_latin1;
-  int total_freq = 0;
-  std::vector<std::tuple<std::vector<char>, int>>::iterator it;
-  for (it = result.begin(); it != result.end(); it++) {
-    total_freq += std::get<1>(*it);
-  }
+// template <>
+// bool Equi_height<String>::fill_histogram(
+//     std::vector<std::tuple<std::vector<char>, int>> &result,
+//     std::vector<std::tuple<std::vector<char>, int>> &res) {
+//   float NUMBER_OF_BUCKETS = 1024.0;
+//   // const CHARSET_INFO *charset_info = &my_charset_latin1;
+//   int total_freq = 0;
+//   std::vector<std::tuple<std::vector<char>, int>>::iterator it;
+//   for (it = result.begin(); it != result.end(); it++) {
+//     total_freq += std::get<1>(*it);
+//   }
 
-  int bucket_size = ceil(total_freq / NUMBER_OF_BUCKETS);
-  int count = 0;
-  int bucket_number = 1;
-  for (it = result.begin(); it != result.end(); it++) {
-    count += std::get<1>(*it);
-    if (count > bucket_number * bucket_size &&
-        bucket_number < NUMBER_OF_BUCKETS) {
-      res.push_back(std::tuple<std::vector<char>, int>(std::get<0>(*it),
-                                                       std::get<1>(*it)));
-    }
-  }
-  return false;
-}
+//   int bucket_size = ceil(total_freq / NUMBER_OF_BUCKETS);
+//   int count = 0;
+//   int bucket_number = 1;
+//   for (it = result.begin(); it != result.end(); it++) {
+//     count += std::get<1>(*it);
+//     if (count > bucket_number * bucket_size &&
+//         bucket_number < NUMBER_OF_BUCKETS) {
+//       res.push_back(std::tuple<std::vector<char>, int>(std::get<0>(*it),
+//                                                        std::get<1>(*it)));
+//     }
+//   }
+//   return false;
+// }
 
-template <>
-bool Equi_height<String>::update_value_map(
-    const Value_map<String> &value_map,
-    std::vector<std::tuple<std::vector<char>, int>> &res) {
-  std::map<String, ha_rows>::const_iterator it;
+// template <>
+// bool Equi_height<String>::update_value_map(
+//     const Value_map<String> &value_map,
+//     std::vector<std::tuple<std::vector<char>, int>> &res) {
+//   std::map<String, ha_rows>::const_iterator it;
 
-  std::vector<std::vector<char>> db;
-  int samplecount = 0;
-  for (it = value_map.begin(); samplecount < 200; it++) {
-    const String currstring = it->first;
-    size_t length = currstring.length();
-    std::vector<char> localstr;
-    for (size_t i = 0; i < length; i++) {
-      if (isalnum(currstring[i])) {
-        localstr.push_back(tolower(currstring[i]));
-      }
-    }
-    db.push_back(localstr);
-    samplecount++;
-  }
+//   std::vector<std::vector<char>> db;
+//   int samplecount = 0;
+//   for (it = value_map.begin(); samplecount < 200; it++) {
+//     const String currstring = it->first;
+//     size_t length = currstring.length();
+//     std::vector<char> localstr;
+//     for (size_t i = 0; i < length; i++) {
+//       if (isalnum(currstring[i])) {
+//         localstr.push_back(tolower(currstring[i]));
+//       }
+//     }
+//     db.push_back(localstr);
+//     samplecount++;
+//   }
 
-  // TODO: Send the value map into the fill_histogram method along with a
-  // pointer to an integer. The method should push back Strings and frequencies
-  // into the value map and increment the counter. We can then emplace into the
-  // histogram by iterating from the end moving until the counter is at 0.
-  std::vector<char> patt;
-  std::vector<std::tuple<int, int>> matches;
-  std::vector<std::tuple<std::vector<char>, int>> result;
-  for (int i = 0; i < 200; i++) {
-    matches.push_back(std::tuple<int, int>(i, -1));
-  }
-  bool error = bide_frequent_rec(patt, matches, result, db);
-  if (!error) {
-    error = fill_histogram(result, res);
-  }
+//   std::vector<char> patt;
+//   std::vector<std::tuple<int, int>> matches;
+//   std::vector<std::tuple<std::vector<char>, int>> result;
+//   for (int i = 0; i < 200; i++) {
+//     matches.push_back(std::tuple<int, int>(i, -1));
+//   }
+//   bool error = bide_frequent_rec(patt, matches, result, db);
+//   if (!error) {
+//     error = fill_histogram(result, res);
+//   }
 
-  if (!error) {
-    std::vector<std::tuple<std::vector<char>, int>>::iterator iter;
-    for (iter = res.begin(); iter != res.end(); iter++) {
-      s_buckets.push_back(std::tuple<std::vector<char>, int>(
-          std::get<0>(*iter), std::get<1>(*iter)));
-    }
-  }
+//   if (!error) {
+//     std::vector<std::tuple<std::vector<char>, int>>::iterator iter;
+//     for (iter = res.begin(); iter != res.end(); iter++) {
+//       s_buckets.push_back(std::tuple<std::vector<char>, int>(
+//           std::get<0>(*iter), std::get<1>(*iter)));
+//     }
+//   }
 
-  return false;
-}
+//   return false;
+// }
 
-template <class T>
-bool Equi_height<T>::fill_histogram(
-    std::vector<std::tuple<std::vector<char>, int>> &result,
-    std::vector<std::tuple<std::vector<char>, int>> &res) {
-  if (result.size() > 0 && res.size() > 0) {
-    return false;
-  }
-  return true;
-}
+// template <class T>
+// bool Equi_height<T>::fill_histogram(
+//     std::vector<std::tuple<std::vector<char>, int>> &result,
+//     std::vector<std::tuple<std::vector<char>, int>> &res) {
+//   if (result.size() > 0 && res.size() > 0) {
+//     return false;
+//   }
+//   return true;
+// }
 
-// Dummy method to allow for a specialized handling of String value_maps.
-template <class T>
-bool Equi_height<T>::update_value_map(
-    const Value_map<T> &value_map,
-    std::vector<std::tuple<std::vector<char>, int>> &res) {
-  if (value_map.get_data_type() == Value_map_type::STRING) {
-    // Something is off.. :-(
-    return true;
-  }
-  if (res.size() > 0) {
-    return true;
-  }
-  return false;
-}
+// // Dummy method to allow for a specialized handling of String value_maps.
+// template <class T>
+// bool Equi_height<T>::update_value_map(
+//     const Value_map<T> &value_map,
+//     std::vector<std::tuple<std::vector<char>, int>> &res) {
+//   if (value_map.get_data_type() == Value_map_type::STRING) {
+//     // Something is off.. :-(
+//     return true;
+//   }
+//   if (res.size() > 0) {
+//     return true;
+//   }
+//   return false;
+// }
 
 /*
   This function will build an equi-height histogram. The algorithm works like
@@ -469,9 +462,8 @@ bool Equi_height<T>::update_value_map(
     is closest to the threshold.
 */
 template <class T>
-bool Equi_height<T>::build_histogram(
-    const Value_map<T> &value_map, size_t num_buckets,
-    std::vector<std::tuple<std::vector<char>, int>> &res) {
+bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
+                                     size_t num_buckets) {
   DBUG_ASSERT(num_buckets > 0);
   if (num_buckets < 1) return true; /* purecov: inspected */
 
@@ -510,7 +502,28 @@ bool Equi_height<T>::build_histogram(
       value_map.get_num_null_values() / static_cast<double>(total_count);
 
   if (value_map.get_data_type() == Value_map_type::STRING) {
-    update_value_map(value_map, res);
+    float count = 0.0;
+    float number_of_buckets = 1024.0;
+    auto striter = value_map.begin();
+    for (; striter != value_map.end(); striter++) {
+      equi_height::Bucket<T> bucket(striter->first, striter->first,
+                                    count++ / (number_of_buckets + 1),
+                                    striter->second);
+
+      /*
+        Since we are using a std::vector with Mem_root_allocator, we are forced
+        to wrap the following section in a try-catch. The Mem_root_allocator
+        will throw an exception of class std::bad_alloc when it runs out of
+        memory.
+      */
+      try {
+        m_buckets.emplace(bucket);
+      } catch (const std::bad_alloc &) {
+        // Out of memory.
+        return true;
+      }
+    }
+    return false;
   }
 
   /*
@@ -879,6 +892,9 @@ int find_match(std::vector<char> predicate, std::vector<char> boundry) {
   long unsigned int matched_letters = 0;
   for (long unsigned int i = 0; i < boundry.size(); i++) {
     for (long unsigned int j = 0; j < predicate.size(); j++) {
+      if (i + j > boundry.size()) {
+        continue;
+      }
       if (predicate[j] == boundry[i + j]) {
         matched_letters++;
       }
@@ -919,17 +935,25 @@ double Equi_height<String>::get_individual_selectivity(
     std::vector<char> &predicate) const {
   std::vector<double> partial_matches;
   std::vector<double> exact_matches;
-  for (auto it = s_buckets.begin(); it != s_buckets.end(); ++it) {
-    int match = find_match(predicate, std::get<0>(*it));
+  for (auto it = m_buckets.begin(); it != m_buckets.end(); ++it) {
+    auto bucket = *it;
+    String endpoint = bucket.get_lower_inclusive();
+    size_t length = endpoint.length();
+    int freq = bucket.get_num_distinct();
+    std::vector<char> localstr;
+    for (size_t i = 0; i < length; i++) {
+      localstr.push_back(tolower(endpoint[i]));
+    }
+    int match = find_match(predicate, localstr);
 
     // Exact match.
     if (match == 2) {
-      double new_sel = (float)std::get<1>(*it) / 200;
+      double new_sel = (double)freq / 200;
       exact_matches.push_back(new_sel);
     }
     // Keeping the partial match only if no exact matches are found yet.
     if (match == 1 && exact_matches.size() == 0) {
-      partial_matches.push_back((int)std::get<1>(*it) / 200);
+      partial_matches.push_back((double)freq / 200);
     }
   }
   if (exact_matches.size() > 0) {
@@ -942,7 +966,7 @@ double Equi_height<String>::get_individual_selectivity(
     double sum = 0;
     std::for_each(partial_matches.begin(), partial_matches.end(),
                   [&](double n) { sum += n; });
-    return sum / (double) partial_matches.size();
+    return sum / (double)partial_matches.size();
   }
 
   // The paper have experimentally evaluated that returning 10% of the minimum
