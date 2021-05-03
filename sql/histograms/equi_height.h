@@ -233,40 +233,7 @@ class Equi_height : public Histogram {
   */
   bool build_histogram(const Value_map<T> &value_map, size_t num_buckets);
 
-  // bool update_value_map(const Value_map<T> &value_map,
-  //                       std::vector<std::tuple<std::vector<char>, int>> &res);
-
-  // bool bide_frequent_rec(
-  //     std::vector<char> patt, std::vector<std::tuple<int, int>> matches,
-  //     std::vector<std::tuple<std::vector<char>, int>> &result,
-  //     std::vector<std::vector<char>> &db);
-
-  // bool fill_histogram(std::vector<std::tuple<std::vector<char>, int>> &result,
-  //                     std::vector<std::tuple<std::vector<char>, int>> &res);
-
   double get_individual_selectivity(std::vector<char> &predicate) const;
-
-  // bool isclosed(std::vector<std::vector<char>> &db, std::vector<char> patt,
-  //               std::vector<std::tuple<int, int>> matches);
-
-  // bool reversescan(std::vector<std::vector<char>> &db, std::vector<char> patt,
-  //                  std::vector<std::tuple<int, int>> matches,
-  //                  const bool isclosedchecktype);
-
-  // bool canclosedprune(std::vector<std::vector<char>> &db,
-  //                     std::vector<char> patt,
-  //                     std::vector<std::tuple<int, int>> matches);
-
-  // void nextentries(std::vector<std::vector<char>> &data,
-  //                  std::vector<std::tuple<int, int>> entries,
-  //                  std::map<char, std::vector<std::tuple<int, int>>> &index);
-
-  // bool islocalclosed(char previtem, std::vector<std::tuple<int, int>> &matches,
-  //                    std::vector<std::vector<char>> db);
-
-  // void invertedindex(std::vector<std::vector<char>> seqs,
-  //                    std::vector<std::tuple<int, int>> entries,
-  //                    std::map<char, std::vector<std::tuple<int, int>>> &index);
 
   /**
     @return number of buckets in this histogram

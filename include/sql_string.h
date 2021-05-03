@@ -216,6 +216,7 @@ class String {
         m_is_alloced(str.m_is_alloced) {
     str.m_is_alloced = false;
   }
+  // Needed in order to collect Strings in a map.
   bool operator<(const String &rhs) const {
     return *m_ptr > *(rhs.ptr());
   }
@@ -585,8 +586,7 @@ class String {
   }
   void print(String *print) const;
 
-  /* Swap two string objects. Efficient way to exchange data without memcpy.
-   */
+  /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(String &s) noexcept;
 
   bool uses_buffer_owned_by(const String *s) const {
@@ -602,8 +602,7 @@ class String {
     return true;
   }
   /**
-    Make a zero-terminated copy of our value,allocated in the specified
-    MEM_ROOT
+    Make a zero-terminated copy of our value,allocated in the specified MEM_ROOT
 
     @param root         MEM_ROOT to allocate the result
 

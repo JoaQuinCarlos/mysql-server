@@ -165,11 +165,11 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   if (value_map.get_data_type() == Value_map_type::STRING) {
     float count = 0.0;
     float number_of_buckets = 1024.0;
-    auto striter = value_map.begin();
-    for (; striter != value_map.end(); striter++) {
-      equi_height::Bucket<T> bucket(striter->first, striter->first,
+    auto str_iter = value_map.begin();
+    for (; str_iter != value_map.end(); str_iter++) {
+      equi_height::Bucket<T> bucket(str_iter->first, str_iter->first,
                                     count++ / (number_of_buckets + 1),
-                                    striter->second);
+                                    str_iter->second);
 
       /*
         Since we are using a std::vector with Mem_root_allocator, we are forced
@@ -204,7 +204,6 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   int num_singlecount_values = 0;
   auto freq_it = value_map.begin();
 
-  // const String *
   const T *lowest_value = &freq_it->first;
 
   for (; freq_it != value_map.end(); ++freq_it) {
@@ -545,21 +544,24 @@ double Equi_height<T>::get_less_than_selectivity(const T &value) const {
   return less_than_equal - equal_to;
 }
 
-int find_match(std::vector<char> predicate, std::vector<char> boundry) {
-  bool PREDICATE_IS_LONGER = predicate.size() >= boundry.size();
+int find_match(std::vector<char> predicate, std::vector<char> bucket_endpoint) {
+  bool PREDICATE_IS_LONGER = predicate.size() >= bucket_endpoint.size();
+
+  // If the predicate is longer than the bucket endpoint, we won't find a match.
   if (PREDICATE_IS_LONGER) {
     return 0;
   }
   long unsigned int matched_letters = 0;
-  for (long unsigned int i = 0; i < boundry.size(); i++) {
+  for (long unsigned int i = 0; i < bucket_endpoint.size(); i++) {
     for (long unsigned int j = 0; j < predicate.size(); j++) {
-      if (i + j > boundry.size()) {
+      if (i + j > bucket_endpoint.size()) {
         continue;
       }
-      if (predicate[j] == boundry[i + j]) {
+      if (predicate[j] == bucket_endpoint[i + j]) {
         matched_letters++;
       }
     }
+    // The predicate is found within the endpoint value. Exact match.
     if (matched_letters == predicate.size()) {
       return 2;
     }
@@ -569,19 +571,21 @@ int find_match(std::vector<char> predicate, std::vector<char> boundry) {
   matched_letters = 0;
   long unsigned int i = 0;
   for (char letter : predicate) {
-    for (; i < boundry.size(); i++) {
-      if (letter == boundry[i]) {
+    for (; i < bucket_endpoint.size(); i++) {
+      if (letter == bucket_endpoint[i]) {
         matched_letters++;
         break;
       }
     }
   }
+  // All letters are found in the correct order. Partial match.
   if (matched_letters == predicate.size()) {
     return 1;
   }
   return 0;
 }
 
+// Dummy method. Specialized version will always be used.
 template <class T>
 double Equi_height<T>::get_individual_selectivity(
     std::vector<char> &predicate) const {
@@ -603,8 +607,10 @@ double Equi_height<String>::get_individual_selectivity(
     int freq = bucket.get_num_distinct();
     std::vector<char> localstr;
     for (size_t i = 0; i < length; i++) {
+      // Since the MySQL LIKE operator is case insensitive, we only deal with lower case.
       localstr.push_back(tolower(endpoint[i]));
     }
+    // Get exact, partial or no match.
     int match = find_match(predicate, localstr);
 
     // Exact match.
@@ -617,7 +623,12 @@ double Equi_height<String>::get_individual_selectivity(
       partial_matches.push_back((double)freq / 200);
     }
   }
+  // The paper have experimentally evaluated that returning 10% of the minimum
+  // support threshold is a good solution whenever no matches are found. For us
+  // this would be 10% of 3/200, or 3/2000.
   double return_value = (double) 3 / (double) 2000;
+
+  // Exact matches have first priority.
   if (exact_matches.size() > 0) {
     double sum = 0;
     std::for_each(exact_matches.begin(), exact_matches.end(),
@@ -631,9 +642,6 @@ double Equi_height<String>::get_individual_selectivity(
     return_value = sum / (double)partial_matches.size();
   }
 
-  // The paper have experimentally evaluated that returning 10% of the minimum
-  // support threshold is a good solution whenever no matches are found. For us
-  // this would be 10% of 3/200, or 3/2000.
   return return_value;
 }
 
@@ -645,7 +653,7 @@ double Equi_height<String>::get_like_selectivity(const String &value) const {
   for (size_t i = 0; i < value.length(); i++) {
     if (value[i] != '%') {
       // If the predicate exceeds 3 in length, we will split it into several
-      // parts, and multiply the estimates together.
+      // parts, and combine the individual selectivity estimate by assuming independence.
       if (v.size() == 3) {
         std::vector<char> temp;
         temp.insert(temp.end(), v.begin(), v.begin() + 3);
@@ -654,6 +662,7 @@ double Equi_height<String>::get_like_selectivity(const String &value) const {
       }
       v.push_back(value[i]);
     } else if (v.size() > 0) {
+      // If we find a wildcard, we will add the built up string as a 'part predicate'.
       predicate.push_back(v);
       v.clear();
     }
@@ -665,13 +674,10 @@ double Equi_height<String>::get_like_selectivity(const String &value) const {
   std::vector<std::vector<char>>::iterator it;
   for (it = predicate.begin(); it != predicate.end(); it++) {
     double new_sel = get_individual_selectivity(*it);
+    // Assuming independence between the different parts of the predicate.
     selectivity *= new_sel;
   }
-
-  // Don't believe too large estimates.
-  if (selectivity > 0.99) {
-    selectivity = 0.99;
-  }
+  
   return selectivity;
 }
 

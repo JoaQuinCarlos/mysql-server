@@ -325,7 +325,7 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
   if (equi_height->build_histogram(value_map, num_buckets)) return nullptr;
   histogram = equi_height;
 
-  // // This code will not be run anymore. Intentionally commented.
+  // This code is not necessary for our experiments. Removed for simplicity.
   // if (num_buckets >= value_map.size()) {
   //   Singleton<T> *singleton = new (mem_root) Singleton<T>(
   //       mem_root, db_name, tbl_name, col_name, value_map.get_data_type());
@@ -355,6 +355,7 @@ Histogram *build_histogram(MEM_ROOT *mem_root, const Value_map<T> &value_map,
   DBUG_ASSERT(histogram->get_num_buckets_specified() == num_buckets);
 
   // Verify that we haven't created more buckets than requested.
+  // The value is hard coded to 1024 because this will be the 'requested' size in our experiments.
   DBUG_ASSERT(histogram->get_num_buckets() <= 1024);
 
   // Ensure that the character set is set.
@@ -718,6 +719,7 @@ static bool prepare_value_maps(
   return false;
 }
 
+// The code from here to line 920 is the C++ translation of https://github.com/RonaldYu/bide-algorithm.
 static bool islocalclosed(char previtem,
                           std::vector<std::tuple<int, int>> &matches,
                           std::vector<std::vector<char>> db) {
@@ -938,14 +940,11 @@ static bool fill_value_maps(
   DBUG_ASSERT(sample_percentage <= 100.0);
   DBUG_ASSERT(fields.size() == value_maps.size());
 
-  // Filling the value maps. This must be changed for string values
-  // such that it includes wildcards
   std::random_device rd;
   std::uniform_int_distribution<int> dist;
 
   // Fixing the sampling seed such that the experiments are reproducable.
   int sampling_seed = 1234;
-  // int sampling_seed = dist(rd);
 
   DBUG_EXECUTE_IF("histogram_force_sampling", {
     sampling_seed = 1;
@@ -977,15 +976,12 @@ static bool fill_value_maps(
           value_maps.at(field->field_index()).get();
 
       switch (histograms::field_type_to_value_map_type(field)) {
+        // Intercepting here to make a specialized 'sampling' for our experiments on String data.
         case histograms::Value_map_type::STRING: {
           if (samplecount < 200) {
             StringBuffer<MAX_FIELD_WIDTH> str_buf(field->charset());
             field->val_str(&str_buf);
 
-            // TODO: Debug here. If we have the strings here, we can run the
-            // BIDE algorithm already here, and just send in the patterns to the
-            // histogram construction methods. Maybe create a counter to ensure
-            // that we only sample 200 rows.
             String a = static_cast<String>(str_buf);
             sample.push_back(a);
             samplecount++;
@@ -1033,6 +1029,8 @@ static bool fill_value_maps(
                     bucket_number < NUMBER_OF_BUCKETS) {
                   bucket_number++;
                   std::vector<char> curr = std::get<0>(*it2);
+                  // Simply returning early in order to avoid the original implementation to run.
+                  // This will not break anything for other data types.
                   if (value_map->add_values(
                           String(&(curr[0]), curr.size(), charset_info),
                           std::get<1>(*it2))) {
@@ -1121,6 +1119,7 @@ static bool fill_value_maps(
 
     res = table->file->ha_sample_next(scan_ctx, table->record[0]);
 
+    // The DBUG is not necessary as long as we get the desired number of samples (200) for our experiments.
     // DBUG_EXECUTE_IF(
     //     "sample_read_sample_half", static uint count = 1;
     //     if (count == std::max(1ULL, table->file->stats.records) / 2) {

@@ -51,6 +51,7 @@ bool Histogram_comparator::operator()(const String &lhs,
   // The collation MUST be the same
   DBUG_ASSERT(lhs.charset()->number == rhs.charset()->number);
 
+  // Removing these DBUGs since we want the entire string for our mining approach.
   // The number of characters should already be limited.
   // DBUG_ASSERT(lhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
   // DBUG_ASSERT(rhs.numchars() <= HISTOGRAM_MAX_COMPARE_LENGTH);
