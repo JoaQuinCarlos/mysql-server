@@ -27,10 +27,15 @@
 
 #include "sql/histograms/equi_height.h"
 
+#include <bits/stdc++.h>
 #include <stdlib.h>
+#include <algorithm>
 #include <cmath>  // std::lround
 #include <iterator>
+#include <map>
 #include <new>
+#include <tuple>
+#include <vector>
 
 #include "my_base.h"  // ha_rows
 #include "my_dbug.h"
@@ -157,6 +162,31 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   m_null_values_fraction =
       value_map.get_num_null_values() / static_cast<double>(total_count);
 
+  if (value_map.get_data_type() == Value_map_type::STRING) {
+    float count = 0.0;
+    float number_of_buckets = 1024.0;
+    auto striter = value_map.begin();
+    for (; striter != value_map.end(); striter++) {
+      equi_height::Bucket<T> bucket(striter->first, striter->first,
+                                    count++ / (number_of_buckets + 1),
+                                    striter->second);
+
+      /*
+        Since we are using a std::vector with Mem_root_allocator, we are forced
+        to wrap the following section in a try-catch. The Mem_root_allocator
+        will throw an exception of class std::bad_alloc when it runs out of
+        memory.
+      */
+      try {
+        m_buckets.emplace(bucket);
+      } catch (const std::bad_alloc &) {
+        // Out of memory.
+        return true;
+      }
+    }
+    return false;
+  }
+
   /*
     Divide the frequencies into evenly-ish spaced buckets, and set the bucket
     threshold accordingly.
@@ -173,6 +203,8 @@ bool Equi_height<T>::build_histogram(const Value_map<T> &value_map,
   // Number of values that occurs only one time.
   int num_singlecount_values = 0;
   auto freq_it = value_map.begin();
+
+  // const String *
   const T *lowest_value = &freq_it->first;
 
   for (; freq_it != value_map.end(); ++freq_it) {
@@ -513,11 +545,140 @@ double Equi_height<T>::get_less_than_selectivity(const T &value) const {
   return less_than_equal - equal_to;
 }
 
+int find_match(std::vector<char> predicate, std::vector<char> boundry) {
+  bool PREDICATE_IS_LONGER = predicate.size() >= boundry.size();
+  if (PREDICATE_IS_LONGER) {
+    return 0;
+  }
+  long unsigned int matched_letters = 0;
+  for (long unsigned int i = 0; i < boundry.size(); i++) {
+    for (long unsigned int j = 0; j < predicate.size(); j++) {
+      if (i + j > boundry.size()) {
+        continue;
+      }
+      if (predicate[j] == boundry[i + j]) {
+        matched_letters++;
+      }
+    }
+    if (matched_letters == predicate.size()) {
+      return 2;
+    }
+    matched_letters = 0;
+  }
+
+  matched_letters = 0;
+  long unsigned int i = 0;
+  for (char letter : predicate) {
+    for (; i < boundry.size(); i++) {
+      if (letter == boundry[i]) {
+        matched_letters++;
+        break;
+      }
+    }
+  }
+  if (matched_letters == predicate.size()) {
+    return 1;
+  }
+  return 0;
+}
+
+template <class T>
+double Equi_height<T>::get_individual_selectivity(
+    std::vector<char> &predicate) const {
+  if (predicate.size() > 0) {
+    return true;
+  }
+  return false;
+}
+
+template <>
+double Equi_height<String>::get_individual_selectivity(
+    std::vector<char> &predicate) const {
+  std::vector<double> partial_matches;
+  std::vector<double> exact_matches;
+  for (auto it = m_buckets.begin(); it != m_buckets.end(); ++it) {
+    auto bucket = *it;
+    String endpoint = bucket.get_lower_inclusive();
+    size_t length = endpoint.length();
+    int freq = bucket.get_num_distinct();
+    std::vector<char> localstr;
+    for (size_t i = 0; i < length; i++) {
+      localstr.push_back(tolower(endpoint[i]));
+    }
+    int match = find_match(predicate, localstr);
+
+    // Exact match.
+    if (match == 2) {
+      double new_sel = (double)freq / 200;
+      exact_matches.push_back(new_sel);
+    }
+    // Keeping the partial match only if no exact matches are found yet.
+    if (match == 1 && exact_matches.size() == 0) {
+      partial_matches.push_back((double)freq / 200);
+    }
+  }
+  double return_value = (double) 3 / (double) 2000;
+  if (exact_matches.size() > 0) {
+    double sum = 0;
+    std::for_each(exact_matches.begin(), exact_matches.end(),
+                  [&](double n) { sum += n; });
+    return_value = sum / exact_matches.size();
+  }
+  if (partial_matches.size() > 0) {
+    double sum = 0;
+    std::for_each(partial_matches.begin(), partial_matches.end(),
+                  [&](double n) { sum += n; });
+    return_value = sum / (double)partial_matches.size();
+  }
+
+  // The paper have experimentally evaluated that returning 10% of the minimum
+  // support threshold is a good solution whenever no matches are found. For us
+  // this would be 10% of 3/200, or 3/2000.
+  return return_value;
+}
+
+template <>
+double Equi_height<String>::get_like_selectivity(const String &value) const {
+  float selectivity = 1.0;
+  std::vector<std::vector<char>> predicate;
+  std::vector<char> v;
+  for (size_t i = 0; i < value.length(); i++) {
+    if (value[i] != '%') {
+      // If the predicate exceeds 3 in length, we will split it into several
+      // parts, and multiply the estimates together.
+      if (v.size() == 3) {
+        std::vector<char> temp;
+        temp.insert(temp.end(), v.begin(), v.begin() + 3);
+        predicate.push_back(temp);
+        v.erase(v.begin(), v.end());
+      }
+      v.push_back(value[i]);
+    } else if (v.size() > 0) {
+      predicate.push_back(v);
+      v.clear();
+    }
+  }
+  if (v.size() > 0) {
+    predicate.push_back(v);
+  }
+
+  std::vector<std::vector<char>>::iterator it;
+  for (it = predicate.begin(); it != predicate.end(); it++) {
+    double new_sel = get_individual_selectivity(*it);
+    selectivity *= new_sel;
+  }
+
+  // Don't believe too large estimates.
+  if (selectivity > 0.99) {
+    selectivity = 0.99;
+  }
+  return selectivity;
+}
+
+// Dummy method since we will always use the specialized String function for
+// LIKE selectivity.
 template <class T>
 double Equi_height<T>::get_like_selectivity(const T &value) const {
-  // This method is the one that should use the histogram to produce
-  // a sensible selectivity estimate for the LIKE operator.
-
   const double less_than_equal = get_less_than_equal_selectivity(value);
   const double equal_to = get_equal_to_selectivity(value);
 
