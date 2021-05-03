@@ -942,7 +942,10 @@ static bool fill_value_maps(
   // such that it includes wildcards
   std::random_device rd;
   std::uniform_int_distribution<int> dist;
-  int sampling_seed = dist(rd);
+
+  // Fixing the sampling seed such that the experiments are reproducable.
+  int sampling_seed = 1234;
+  // int sampling_seed = dist(rd);
 
   DBUG_EXECUTE_IF("histogram_force_sampling", {
     sampling_seed = 1;
@@ -1915,10 +1918,11 @@ bool Histogram::get_selectivity(Item **items, size_t item_count,
   }
 
   switch (op) {
-    case enum_operator::LESS_THAN:
-    case enum_operator::EQUALS_TO:
     case enum_operator::LIKE:
       return get_selectivity_dispatcher(items[1], op, typelib, selectivity);
+      break;
+    case enum_operator::LESS_THAN:
+    case enum_operator::EQUALS_TO:
     case enum_operator::GREATER_THAN: {
       return get_selectivity_dispatcher(items[1], op, typelib, selectivity);
     }
