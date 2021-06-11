@@ -630,10 +630,11 @@ double Equi_height<String>::get_individual_selectivity(
 
   // Exact matches have first priority.
   if (exact_matches.size() > 0) {
-    double sum = 0;
-    std::for_each(exact_matches.begin(), exact_matches.end(),
-                  [&](double n) { sum += n; });
-    return_value = sum / exact_matches.size();
+    auto it = max_element(std::begin(exact_matches), std::end(exact_matches));
+    return_value = *it;
+    // std::for_each(exact_matches.begin(), exact_matches.end(),
+    //               [&](double n) { sum += n; });
+    // return_value = sum / exact_matches.size();
   }
   if (partial_matches.size() > 0) {
     double sum = 0;
@@ -652,6 +653,9 @@ double Equi_height<String>::get_like_selectivity(const String &value) const {
   std::vector<char> v;
   for (size_t i = 0; i < value.length(); i++) {
     if (value[i] != '%') {
+      if (!isalnum(value[i])) {
+        continue;
+      }
       // If the predicate exceeds 3 in length, we will split it into several
       // parts, and combine the individual selectivity estimate by assuming independence.
       if (v.size() == 3) {
